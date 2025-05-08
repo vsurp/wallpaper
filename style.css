@@ -16,6 +16,7 @@
  * 12. Utility Classes
  * 13. Animations
  * 14. Enhanced Media UI (NOWA SEKCJA / ZMODYFIKOWANA)
+ * 15. Enhanced Menu System for Effects & Transitions (NOWA SEKCJA)
  */
 
 /* ========== 1. IMPORTS AND RESETS ========== */
@@ -349,7 +350,7 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 /* ... */
 
 
-/* ========== 14. ENHANCED MEDIA UI (STYLE SPECYFICZNE DLA SUBMENU IMPORTU MEDIÓW) ========== */
+/* ========== 14. ENHANCED MEDIA UI (NOWA SEKCJA / ZMODYFIKOWANA) ========== */
 
 #import-media-submenu .menu-content {
   display: flex;
@@ -1135,4 +1136,138 @@ input[type="range"]::-moz-range-thumb {
   .media-settings-dialog {
     width: 95%;
   }
+}
+
+/* ========== 15. ENHANCED MENU SYSTEM FOR EFFECTS & TRANSITIONS (NOWA SEKCJA) ========== */
+
+/* Style dla submenu poziom 2 i 3 */
+.submenu-wrapper-l2,
+.submenu-wrapper-l3 {
+  position: fixed;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 102;
+  transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
+  pointer-events: none;
+  display: none;
+}
+
+.submenu-wrapper-l2 {
+  left: calc(var(--menu-width) + var(--submenu-width) - 300px);
+}
+
+.submenu-wrapper-l3 {
+  left: calc(var(--menu-width) + var(--submenu-width) - 600px);
+  z-index: 103;
+}
+
+.submenu-wrapper-l2.active,
+.submenu-wrapper-l3.active {
+  width: var(--submenu-width);
+  pointer-events: all;
+}
+
+.slide-submenu-l2,
+.slide-submenu-l3 {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: var(--submenu-width);
+  background-color: var(--menu-background);
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
+  visibility 0s linear var(--menu-animation-time);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-submenu-l2.active,
+.slide-submenu-l3.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
+  visibility 0s linear 0s;
+}
+
+.submenu-item-l2,
+.submenu-item-l3 {
+  display: block;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--btn-border-radius);
+  transition: background-color 0.2s, color 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  color: var(--text-color);
+  user-select: none;
+  text-align: left;
+}
+
+.submenu-item-l2:hover,
+.submenu-item-l3:hover {
+  background-color: var(--menu-hover);
+  color: var(--primary-color);
+}
+
+/* Wskaźniki efektów i przejść na miniaturkach */
+.effect-indicator,
+.transition-indicator {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: var(--primary-color);
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  z-index: 5;
+}
+
+.effect-indicator {
+  top: 4px;
+  left: 4px;
+}
+
+.transition-indicator {
+  top: 4px;
+  left: 24px; /* Obok effect-indicator */
+}
+
+/* Animacja pulsowania do podświetlenia przycisku */
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(var(--primary-color-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); }
+}
+
+.pulse-highlight {
+  animation: pulse 1s ease-in-out 3;
+  background-color: rgba(var(--primary-color-rgb), 0.2) !important;
+  color: var(--primary-color) !important;
+}
+
+/* Dodatkowe style dla przycisków MANAGE EFFECTS/TRANSITIONS */
+.open-effects-l2,
+.open-transitions-l2 {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Style dla przycisków zamykania submenu poziom 2 i 3 */
+.submenu-close-l2,
+.submenu-close-l3 {
+  font-size: 1.8rem;
 }

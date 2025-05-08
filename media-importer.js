@@ -1165,7 +1165,7 @@ const MediaModule = (() => {
 
     // Przycisk do efektów
     const effectsLink = document.createElement('button');
-    effectsLink.textContent = 'Go to Effects';
+    effectsLink.textContent = 'EFFECTS';
     effectsLink.className = 'btn btn-secondary setting-btn';
     effectsLink.style.flex = '1';
     effectsLink.onclick = () => {
@@ -1184,7 +1184,7 @@ const MediaModule = (() => {
 
     // Przycisk do przejść
     const transitionsLink = document.createElement('button');
-    transitionsLink.textContent = 'Go to Transitions';
+    transitionsLink.textContent = 'TRANSITIONS';
     transitionsLink.className = 'btn btn-secondary setting-btn';
     transitionsLink.style.flex = '1';
     transitionsLink.onclick = () => {

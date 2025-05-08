@@ -194,24 +194,18 @@
     </div>
       <div class="menu-content">
         <div class="menu-section">
-          <div class="submenu-item" data-action="fade-transition">FADE</div>
-          <div class="submenu-item" data-action="slide-transition">SLIDE</div>
-          <div class="submenu-item" data-action="zoom-transition">ZOOM</div>
-          <div class="submenu-item" data-action="dissolve-transition">DISSOLVE</div>
-          <div class="submenu-item" data-action="custom-transition">CUSTOM</div>
+          <div class="submenu-item open-transitions-l2" data-action="open-transitions-l2">MANAGE TRANSITIONS</div>
         </div>
       </div>
       <div class="menu-footer"></div>
     </div>
+
     <div id="effects-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>EFFECTS</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <div class="submenu-item" data-action="blur-effect">BLUR</div>
-        <div class="submenu-item" data-action="glow-effect">GLOW</div>
-        <div class="submenu-item" data-action="particle-effect">PARTICLES</div>
-        <div class="submenu-item" data-action="color-effect">COLOR FILTERS</div>
-        <div class="submenu-item" data-action="distortion-effect">DISTORTION</div>
-      </div></div><div class="menu-footer"></div>
+        <div class="submenu-item open-effects-l2" data-action="open-effects-l2">MANAGE EFFECTS</div>
+      </div></div>
+      <div class="menu-footer"></div>
     </div>
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
@@ -273,8 +267,86 @@
     </div>
   </div>
 
+  <!-- Submenu poziomu 2 dla Effects i Transitions -->
+  <div class="submenu-wrapper-l2">
+    <!-- Effects List Submenu -->
+    <div id="effects-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
+      <div class="menu-header">
+        <h1>EFFECTS</h1>
+        <button class="btn btn-icon submenu-close-l2" aria-label="Close submenu">&times;</button>
+      </div>
+      <div class="menu-content">
+        <div class="menu-section">
+          <div class="submenu-item-l2" data-effect-id="blur">BLUR</div>
+          <div class="submenu-item-l2" data-effect-id="glow">GLOW</div>
+          <div class="submenu-item-l2" data-effect-id="grayscale">GRAYSCALE</div>
+          <div class="submenu-item-l2" data-effect-id="sepia">SEPIA</div>
+          <div class="submenu-item-l2" data-effect-id="vignette">VIGNETTE</div>
+        </div>
+      </div>
+      <div class="menu-footer"></div>
+    </div>
+
+    <!-- Transitions List Submenu -->
+    <div id="transitions-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
+      <div class="menu-header">
+        <h1>TRANSITIONS</h1>
+        <button class="btn btn-icon submenu-close-l2" aria-label="Close submenu">&times;</button>
+      </div>
+      <div class="menu-content">
+        <div class="menu-section">
+          <div class="submenu-item-l2" data-transition-id="fade">FADE</div>
+          <div class="submenu-item-l2" data-transition-id="slide">SLIDE</div>
+          <div class="submenu-item-l2" data-transition-id="zoom">ZOOM</div>
+          <div class="submenu-item-l2" data-transition-id="dissolve">DISSOLVE</div>
+          <div class="submenu-item-l2" data-transition-id="custom">CUSTOM</div>
+        </div>
+      </div>
+      <div class="menu-footer"></div>
+    </div>
+  </div>
+
+  <!-- Submenu poziomu 3 dla parametrów efektów i przejść -->
+  <div class="submenu-wrapper-l3">
+    <!-- Effect Parameters Submenu -->
+    <div id="effect-params-submenu" class="slide-submenu-l3 acrylic acrylic-dark">
+      <div class="menu-header">
+        <h1>EFFECT PARAMETERS</h1>
+        <button class="btn btn-icon submenu-close-l3" aria-label="Close submenu">&times;</button>
+      </div>
+      <div class="menu-content">
+        <div class="menu-section">
+          <!-- Tutaj będą dynamicznie tworzone parametry efektu -->
+          <div class="submenu-item-l3">PARAMETR 1</div>
+          <div class="submenu-item-l3">PARAMETR 2</div>
+          <div class="submenu-item-l3">PARAMETR 3</div>
+        </div>
+      </div>
+      <div class="menu-footer"></div>
+    </div>
+
+    <!-- Transition Parameters Submenu -->
+    <div id="transition-params-submenu" class="slide-submenu-l3 acrylic acrylic-dark">
+      <div class="menu-header">
+        <h1>TRANSITION PARAMETERS</h1>
+        <button class="btn btn-icon submenu-close-l3" aria-label="Close submenu">&times;</button>
+      </div>
+      <div class="menu-content">
+        <div class="menu-section">
+          <!-- Tutaj będą dynamicznie tworzone parametry przejścia -->
+          <div class="submenu-item-l3">PARAMETR 1</div>
+          <div class="submenu-item-l3">PARAMETR 2</div>
+          <div class="submenu-item-l3">PARAMETR 3</div>
+        </div>
+      </div>
+      <div class="menu-footer"></div>
+    </div>
+  </div>
+
   <div id="tooltip-container"></div>
-  <div id="notification-container" style="visibility: hidden;"></div> <div id="modal-container" style="display: none;"></div> </div>
+  <div id="notification-container" style="visibility: hidden;"></div>
+  <div id="modal-container" style="display: none;"></div>
+</div>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -325,6 +397,10 @@
             submenu.classList.remove('active');
           });
         }
+
+        // Zamknij także submenu poziomu 2 i 3
+        closeAllLevel2Submenus();
+        closeAllLevel3Submenus();
       }
 
       menuTrigger.addEventListener('click', () => {
@@ -359,11 +435,26 @@
               setTimeout(() => {
                 newSubmenu.classList.add('active');
                 submenuWrapper.classList.add('active');
+
+                // Sprawdź czy to Effects lub Transitions i pulsacyjnie podświetl odpowiedni przycisk
+                if (action === 'effects') {
+                  highlightButton(newSubmenu.querySelector('.open-effects-l2'));
+                } else if (action === 'transitions') {
+                  highlightButton(newSubmenu.querySelector('.open-transitions-l2'));
+                }
+
               }, menuAnimationTimeMs); // Usunięto redundantną zmienną transitionDuration
 
             } else if (!currentActiveSubmenu) {
               newSubmenu.classList.add('active');
               submenuWrapper.classList.add('active');
+
+              // Sprawdź czy to Effects lub Transitions i pulsacyjnie podświetl odpowiedni przycisk
+              if (action === 'effects') {
+                highlightButton(newSubmenu.querySelector('.open-effects-l2'));
+              } else if (action === 'transitions') {
+                highlightButton(newSubmenu.querySelector('.open-transitions-l2'));
+              }
             } else if (currentActiveSubmenu === newSubmenu) {
               closeAllSubmenus(true);
               item.classList.remove('selected');
@@ -386,16 +477,188 @@
           if (activeModal) {
             WallpaperApp.UI.hideModal(activeModal.id);
           } else {
-            const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
-            if (activeSubmenus.length > 0) {
-              closeAllSubmenus(true);
-              categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-            } else if (mainMenu.classList.contains('active')) {
-              mainMenu.classList.remove('active');
+            const activeL3Submenus = document.querySelectorAll('.slide-submenu-l3.active');
+            if (activeL3Submenus.length > 0) {
+              closeAllLevel3Submenus();
+            } else {
+              const activeL2Submenus = document.querySelectorAll('.slide-submenu-l2.active');
+              if (activeL2Submenus.length > 0) {
+                closeAllLevel2Submenus();
+              } else {
+                const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
+                if (activeSubmenus.length > 0) {
+                  closeAllSubmenus(true);
+                  categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+                } else if (mainMenu.classList.contains('active')) {
+                  mainMenu.classList.remove('active');
+                }
+              }
             }
           }
         }
       });
+
+      // Dodaj obsługę submenu poziom 2 i 3
+      setupEnhancedMenuFunctionality();
+    }
+
+    function setupEnhancedMenuFunctionality() {
+      // Znajdź przyciski otwierające submenu poziom 2
+      const openEffectsL2Button = document.querySelector('.open-effects-l2');
+      const openTransitionsL2Button = document.querySelector('.open-transitions-l2');
+
+      // Przyciski zamykania submenu poziom 2 i 3
+      const submenuL2CloseButtons = document.querySelectorAll('.submenu-close-l2');
+      const submenuL3CloseButtons = document.querySelectorAll('.submenu-close-l3');
+
+      // Przyciski efektów i przejść w submenu poziom 2
+      const effectButtons = document.querySelectorAll('#effects-list-submenu .submenu-item-l2');
+      const transitionButtons = document.querySelectorAll('#transitions-list-submenu .submenu-item-l2');
+
+      // Obsługa przycisków otwierających menu poziom 2
+      if (openEffectsL2Button) {
+        openEffectsL2Button.addEventListener('click', () => {
+          openLevel2Submenu('effects-list-submenu');
+        });
+      }
+
+      if (openTransitionsL2Button) {
+        openTransitionsL2Button.addEventListener('click', () => {
+          openLevel2Submenu('transitions-list-submenu');
+        });
+      }
+
+      // Obsługa zamykania submenu poziom 2
+      submenuL2CloseButtons.forEach(button => {
+        button.addEventListener('click', closeAllLevel2Submenus);
+      });
+
+      // Obsługa zamykania submenu poziom 3
+      submenuL3CloseButtons.forEach(button => {
+        button.addEventListener('click', closeAllLevel3Submenus);
+      });
+
+      // Obsługa kliknięć w efekty w submenu poziom 2
+      effectButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const effectId = button.getAttribute('data-effect-id');
+          openLevel3Submenu('effect-params-submenu', effectId, 'effect');
+        });
+      });
+
+      // Obsługa kliknięć w przejścia w submenu poziom 2
+      transitionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const transitionId = button.getAttribute('data-transition-id');
+          openLevel3Submenu('transition-params-submenu', transitionId, 'transition');
+        });
+      });
+    }
+
+    // Funkcja otwierająca submenu poziom 2
+    function openLevel2Submenu(submenuId) {
+      // Zamknij wcześniej otwarte submenu poziomu 2
+      closeAllLevel2Submenus();
+
+      // Otwórz nowe submenu
+      const submenu = document.getElementById(submenuId);
+      const submenuWrapper = document.querySelector('.submenu-wrapper-l2');
+
+      if (submenu && submenuWrapper) {
+        submenuWrapper.style.display = 'block';
+        submenu.classList.add('active');
+
+        // Animacja otwarcia
+        setTimeout(() => {
+          submenuWrapper.classList.add('active');
+        }, 10);
+      }
+    }
+
+    // Funkcja otwierająca submenu poziom 3
+    function openLevel3Submenu(submenuId, itemId, type) {
+      // Zamknij wcześniej otwarte submenu poziomu 3
+      closeAllLevel3Submenus();
+
+      // Otwórz nowe submenu
+      const submenu = document.getElementById(submenuId);
+      const submenuWrapper = document.querySelector('.submenu-wrapper-l3');
+
+      if (submenu && submenuWrapper) {
+        // Aktualizuj tytuł submenu
+        const title = type === 'effect' ? `${itemId.toUpperCase()} EFFECT` : `${itemId.toUpperCase()} TRANSITION`;
+        submenu.querySelector('h1').textContent = title;
+
+        // Ustaw data atrybuty
+        if (type === 'effect') {
+          submenu.setAttribute('data-effect-id', itemId);
+        } else if (type === 'transition') {
+          submenu.setAttribute('data-transition-id', itemId);
+        }
+
+        submenuWrapper.style.display = 'block';
+        submenu.classList.add('active');
+
+        // Animacja otwarcia
+        setTimeout(() => {
+          submenuWrapper.classList.add('active');
+        }, 10);
+      }
+    }
+
+    // Funkcja zamykająca wszystkie submenu poziomu 2
+    function closeAllLevel2Submenus() {
+      const submenuWrapper = document.querySelector('.submenu-wrapper-l2');
+      const activeSubmenus = document.querySelectorAll('.slide-submenu-l2.active');
+
+      if (submenuWrapper) {
+        submenuWrapper.classList.remove('active');
+
+        // Ukryj aktywne submenu
+        activeSubmenus.forEach(submenu => {
+          submenu.classList.remove('active');
+        });
+
+        // Po animacji ukryj wrapper
+        setTimeout(() => {
+          submenuWrapper.style.display = 'none';
+        }, 300);
+      }
+
+      // Zamknij również submenu poziomu 3
+      closeAllLevel3Submenus();
+    }
+
+    // Funkcja zamykająca wszystkie submenu poziomu 3
+    function closeAllLevel3Submenus() {
+      const submenuWrapper = document.querySelector('.submenu-wrapper-l3');
+      const activeSubmenus = document.querySelectorAll('.slide-submenu-l3.active');
+
+      if (submenuWrapper) {
+        submenuWrapper.classList.remove('active');
+
+        // Ukryj aktywne submenu
+        activeSubmenus.forEach(submenu => {
+          submenu.classList.remove('active');
+        });
+
+        // Po animacji ukryj wrapper
+        setTimeout(() => {
+          submenuWrapper.style.display = 'none';
+        }, 300);
+      }
+    }
+
+    // Funkcja podświetlająca przycisk pulsacyjnie
+    function highlightButton(button) {
+      if (!button) return;
+
+      button.classList.add('pulse-highlight');
+
+      // Usuń klasę po animacji
+      setTimeout(() => {
+        button.classList.remove('pulse-highlight');
+      }, 2000);
     }
   });
 </script>
