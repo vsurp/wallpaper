@@ -292,6 +292,7 @@
       // Pobierz czas animacji z CSS i przekonwertuj na milisekundy
       let menuAnimationTimeMs = 300; // Domyślna wartość
       try {
+        // Pobieranie wartości zmiennej CSS --menu-animation-time
         const menuAnimationTimeCss = getComputedStyle(document.documentElement).getPropertyValue('--menu-animation-time').trim();
         if (menuAnimationTimeCss.endsWith('ms')) {
           menuAnimationTimeMs = parseFloat(menuAnimationTimeCss);
@@ -354,13 +355,11 @@
               currentActiveSubmenu.classList.remove('active');
               submenuWrapper.classList.remove('active');
 
-              // Użyj menuAnimationTimeMs zamiast próbować parsować CSS w locie
-              const transitionDuration = menuAnimationTimeMs;
-
+              // Bezpośrednie użycie menuAnimationTimeMs
               setTimeout(() => {
                 newSubmenu.classList.add('active');
                 submenuWrapper.classList.add('active');
-              }, transitionDuration);
+              }, menuAnimationTimeMs); // Usunięto redundantną zmienną transitionDuration
 
             } else if (!currentActiveSubmenu) {
               newSubmenu.classList.add('active');
