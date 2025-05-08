@@ -1,0 +1,1425 @@
+/**
+ * FL Studio Wallpaper App - Refactored CSS with Windows 11 Acrylic Design
+ * ----------------------------------------
+ * Table of Contents:
+ * 1. Imports and Resets
+ * 2. Theme Variables
+ * 3. Windows 11 Acrylic Effect Mixins
+ * 4. Base Styles
+ * 5. App Structure
+ * 6. Loading Screen
+ * 7. Menu System
+ * 8. UI Components
+ * 9. Form Styles
+ * 10. Tutorial and Help
+ * 11. Debug Console
+ * 12. Utility Classes
+ * 13. Animations
+ */
+
+/* ========== 1. IMPORTS AND RESETS ========== */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ========== 2. THEME VARIABLES ========== */
+:root {
+  /* Color Variables */
+  --primary-color: #c8c8c8;
+  --secondary-color: #2196f3;
+  --background-color: #121212;
+  --text-color: #ffffff;
+  --menu-background: rgba(20, 20, 20, 0.6);
+  --menu-hover: rgba(255, 255, 255, 0.1);
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+  --success-color: #4caf50;
+  --info-color: #2196f3;
+
+  /* Windows 11 Acrylic Variables */
+  --acrylic-blur: 12.5px;
+  --acrylic-saturation: 125%;
+  --acrylic-noise-opacity: 0.03;
+
+  /* Animation Timings */
+  --menu-animation-time: 300ms;
+  --tooltip-delay: 1000ms;
+
+  /* Sizes */
+  --menu-width: 300px;
+  --submenu-width: 300px;
+  --header-height: 60px;
+  --footer-height: 40px;
+}
+
+/* ========== 3. WINDOWS 11 ACRYLIC EFFECT MIXINS ========== */
+/* Acrylic Noise Animation */
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-1%, -1%); }
+  20% { transform: translate(1%, 1%); }
+  30% { transform: translate(2%, -2%); }
+  40% { transform: translate(-2%, 2%); }
+  50% { transform: translate(-1%, 1%); }
+  60% { transform: translate(3%, -1%); }
+  70% { transform: translate(1%, 3%); }
+  80% { transform: translate(-3%, 1%); }
+  90% { transform: translate(1%, -2%); }
+}
+
+/* Reusable Acrylic Classes */
+.acrylic {
+  position: relative;
+  backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+  -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+}
+
+.acrylic::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: var(--acrylic-noise-opacity);
+  pointer-events: none;
+  z-index: -1;
+  animation: grain 8s steps(10) infinite;
+}
+
+.acrylic-light {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.acrylic-dark {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* ========== 4. BASE STYLES ========== */
+body {
+  font-family: 'Barlow', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+
+/* Add pixelated grid background */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.9) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.9) 1px, transparent 1px);
+  background-size: 5px 5px;
+  z-index: -1;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Menu and Submenu Items */
+div, h1, h2 {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* ========== 5. APP STRUCTURE ========== */
+#app-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Module Containers */
+.module-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#background-container {
+  z-index: 1;
+}
+
+#media-container {
+  z-index: 2;
+}
+
+#visualizer-container {
+  z-index: 3;
+  pointer-events: none; /* Allow clicks to pass through */
+}
+
+/* ========== 6. LOADING SCREEN ========== */
+#loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--background-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-container {
+  text-align: center;
+  width: 80%;
+  max-width: 400px;
+}
+
+.loading-logo {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 2rem;
+  color: var(--primary-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.loading-progress {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: var(--primary-color);
+  width: 0;
+  transition: width 0.3s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.loading-status {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ========== 7. MENU SYSTEM ========== */
+/* Menu Trigger */
+.menu-trigger {
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 100%;
+  z-index: 90;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-trigger.right {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.menu-hover-area:hover .menu-trigger.right,
+.menu-trigger.right:hover {
+  opacity: 1;
+}
+
+.menu-trigger.left {
+  left: 0;
+}
+
+.trigger-indicator {
+  width: 6px;
+  height: 40px;
+  background-color: var(--primary-color);
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: opacity 0.2s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.menu-trigger:hover .trigger-indicator {
+  opacity: 1;
+}
+
+/* Menu Container Setup */
+.menu-container {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: var(--menu-width);
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Main Menu */
+#main-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: var(--menu-width);
+  height: 100%;
+  background-color: var(--menu-background);
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  transform: translateX(100%);
+  transition: transform var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
+  display: flex;
+  flex-direction: column;
+  pointer-events: all;
+  overflow: hidden;
+}
+
+#main-menu.active {
+  transform: translateX(0);
+}
+
+/* Add acrylic effect to main menu */
+#main-menu.active {
+  backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+  -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+}
+
+#main-menu.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: var(--acrylic-noise-opacity);
+  pointer-events: none;
+  z-index: -1;
+  animation: grain 8s steps(10) infinite;
+}
+
+/* Submenu wrapper */
+.submenu-wrapper {
+  position: fixed;
+  top: 0;
+  right: var(--menu-width);
+  height: 100vh;
+  width: 0;
+  overflow: hidden;
+  z-index: 101;
+  transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
+  pointer-events: none;
+}
+
+.submenu-wrapper.active {
+  width: var(--submenu-width);
+  pointer-events: all;
+  right: calc(var(--menu-width) - 1px); /* Move 1px to the right to eliminate the line */
+}
+
+/* Submenu */
+.slide-submenu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--submenu-width);
+  background-color: rgba(15, 15, 15, 0.6);
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
+  pointer-events: all;
+}
+
+.slide-submenu.active {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+  backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+  -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+}
+
+.slide-submenu.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: var(--acrylic-noise-opacity);
+  pointer-events: none;
+  z-index: -1;
+  animation: grain 8s steps(10) infinite;
+}
+
+.submenu-close {
+  font-size: 2rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.1s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+/* Back button */
+.back-button {
+  display: flex;
+  align-items: center;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: color 0.2s cubic-bezier(0.43, 0, 0.15, 1);
+  padding: 8px;
+}
+
+.back-button::before {
+  content: "←";
+  margin-right: 8px;
+  font-size: 1.2rem;
+}
+
+.back-button:hover {
+  color: var(--primary-color);
+}
+
+/* Right side hover detection area */
+.menu-hover-area {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 20%;
+  height: 100%;
+  z-index: 98;
+  pointer-events: auto;
+}
+
+/* Menu Header */
+.menu-header {
+  height: var(--header-height);
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-header h1 {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.menu-close {
+  font-size: 2rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.2s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.menu-close:hover {
+  color: var(--primary-color);
+}
+
+/* Menu Content */
+.menu-content {
+  flex: 1;
+  overflow-y: hidden;
+  padding: 1rem;
+}
+
+/* Menu Sections */
+.menu-section {
+  margin-bottom: 2rem;
+}
+
+.menu-section h2 {
+  font-size: 3rem;
+  text-transform: uppercase;
+  font-weight: 900;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--text-color);
+  letter-spacing: 0.05em;
+  line-height: 1;
+  margin-bottom: 1rem;
+}
+
+.menu-section h2:hover {
+  color: var(--text-color);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.section-content {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  padding: 1rem;
+}
+
+.section-content.acrylic::before {
+  border-radius: 5px;
+}
+
+/* Menu Footer */
+.menu-footer {
+  height: var(--footer-height);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.version-info {
+  opacity: 0.7;
+}
+
+/* Menu Items */
+.category-item, .menu-item, .submenu-item {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background-color 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.category-item.acrylic::before,
+.menu-item.acrylic::before,
+.submenu-item.acrylic::before {
+  border-radius: 0;
+}
+
+.category-item:hover, .menu-item:hover, .submenu-item:hover {
+  background-color: var(--menu-hover);
+}
+
+.menu-item.selected, .category-item.selected, .submenu-item.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-left: 3px solid var(--primary-color);
+}
+
+.new-tag {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 2px;
+  margin-left: 1rem;
+  letter-spacing: 0.05em;
+  font-weight: bold;
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  margin: 10px 0;
+}
+
+/* ========== 8. UI COMPONENTS ========== */
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  max-width: 300px;
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s cubic-bezier(0.43, 0, 0.15, 1), transform 0.3s cubic-bezier(0.43, 0, 0.15, 1);
+  pointer-events: none;
+}
+
+.tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Notification Containers */
+#notification-container {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1050;
+  visibility: hidden;
+}
+
+/* Basic Notification */
+.notification {
+  position: relative;
+  background-color: var(--menu-background);
+  color: white;
+  margin: 10px;
+  padding: 15px 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  max-width: 350px;
+  transform: translateX(120%);
+  transition: transform 0.3s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.notification.show {
+  transform: translateX(0);
+}
+
+.notification.info {
+  border-left: 4px solid var(--info-color);
+}
+
+.notification.error {
+  border-left: 4px solid var(--error-color);
+}
+
+.notification.warning {
+  border-left: 4px solid var(--warning-color);
+}
+
+.notification.success {
+  border-left: 4px solid var(--success-color);
+}
+
+/* System Notification */
+.system-notification {
+  position: relative;
+  background-color: var(--menu-background);
+  border-left: 4px solid var(--primary-color);
+  margin: 10px;
+  width: 320px;
+  border-radius: 4px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transform: translateX(50px);
+  transition: opacity 0.3s, transform 0.3s;
+  overflow: hidden;
+}
+
+.system-notification.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.system-notification.error {
+  border-left-color: var(--error-color);
+}
+
+.system-notification.warning {
+  border-left-color: var(--warning-color);
+}
+
+.system-notification.success {
+  border-left-color: var(--success-color);
+}
+
+.system-notification.info {
+  border-left-color: var(--info-color);
+}
+
+.system-notification.update {
+  border-left-color: #2196f3;
+}
+
+.system-notification.plugin {
+  border-left-color: #ff9800;
+}
+
+.system-notification.achievement {
+  border-left-color: #9c27b0;
+}
+
+.notification-header {
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notification-icon {
+  margin-right: 10px;
+  font-size: 1.2rem;
+}
+
+.notification-title {
+  flex-grow: 1;
+  font-weight: 600;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.notification-content {
+  padding: 10px 15px;
+}
+
+.notification-actions {
+  padding-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.notification-action {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.notification-action:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Modals */
+#modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.modal {
+  background-color: var(--menu-background);
+  border-radius: 5px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-close {
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.modal-footer button {
+  margin-left: 10px;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+.modal-footer button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.modal-footer button.primary {
+  background-color: var(--primary-color);
+}
+
+.modal-footer button.primary:hover {
+  background-color: var(--primary-color);
+  opacity: 0.9;
+}
+
+/* ========== 9. FORM STYLES ========== */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 4px;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.setting-description {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 5px;
+}
+
+/* Common Form Elements */
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin: 10px 0;
+}
+
+button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s cubic-bezier(0.43, 0, 0.15, 1);
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.secondary {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Button Styles */
+.primary-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.secondary-btn {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.danger-btn {
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch label {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 34px;
+  transition: .4s;
+}
+
+.toggle-switch label:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .4s;
+}
+
+.toggle-switch input:checked + label {
+  background-color: var(--primary-color);
+}
+
+.toggle-switch input:checked + label:before {
+  transform: translateX(26px);
+}
+
+/* ========== 10. TUTORIAL AND HELP ========== */
+/* Support Container */
+.support-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+/* Tutorial Overlay */
+.tutorial-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+/* Tutorial Popup */
+.tutorial-popup {
+  position: absolute;
+  width: 350px;
+  background-color: var(--menu-background);
+  border-radius: 5px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.tutorial-header {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tutorial-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.tutorial-close:hover {
+  color: var(--primary-color);
+}
+
+.tutorial-content {
+  padding: 15px;
+  line-height: 1.6;
+}
+
+.tutorial-footer {
+  padding: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-prev, .tutorial-next {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tutorial-prev:disabled {
+  background-color: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+}
+
+.tutorial-progress {
+  display: flex;
+  gap: 5px;
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.progress-dot.active {
+  background-color: var(--primary-color);
+}
+
+/* Tutorial Highlight */
+.tutorial-highlight {
+  position: absolute;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--primary-color);
+  border-radius: 4px;
+  box-sizing: content-box;
+  pointer-events: none;
+  z-index: 9001;
+}
+
+/* ========== 11. DEBUG CONSOLE ========== */
+#debug-console {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background-color: rgba(0, 0, 0, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+}
+
+#debug-console.hidden {
+  display: none;
+}
+
+.console-header {
+  padding: 5px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.console-controls button {
+  margin-left: 10px;
+  padding: 4px 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 3px;
+  color: white;
+  cursor: pointer;
+}
+
+.console-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.log-container {
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.log-entry {
+  margin-bottom: 4px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.log-entry .timestamp {
+  color: #888;
+  margin-right: 10px;
+}
+
+.log-entry .level {
+  display: inline-block;
+  width: 60px;
+  font-weight: bold;
+}
+
+.log-entry .details {
+  margin-top: 5px;
+  padding-left: 20px;
+  color: #aaa;
+  white-space: pre-wrap;
+}
+
+.log-entry.error .level {
+  color: var(--error-color);
+}
+
+.log-entry.warn .level {
+  color: var(--warning-color);
+}
+
+.log-entry.info .level {
+  color: var(--info-color);
+}
+
+.log-entry.debug .level {
+  color: #888;
+}
+
+/* ========== 12. UTILITY CLASSES ========== */
+/* NFS Style Typography */
+.nfs-style {
+  font-family: 'Barlow', sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Utility Classes */
+.hidden {
+  display: none !important;
+}
+
+/* ========== 13. ANIMATIONS ========== */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.5s forwards;
+}
+
+/* ========== Enhanced Media UI with Windows 11 Styling ========== */
+/* Add this to your existing CSS file (paste-2.txt) */
+
+/* Target the specific containers */
+#media-gallery,
+#playlist-container,
+.menu-content,
+.slide-submenu .menu-content {
+  /* Ensure only vertical scrolling */
+  overflow-x: hidden;
+  overflow-y: hidden;
+
+  /* Firefox scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+  /* Update border radius for Windows 11 look */
+  border-radius: 8px !important;
+}
+
+/* Chrome, Edge, and Safari scrollbar styling - vertical only */
+#media-gallery::-webkit-scrollbar,
+#playlist-container::-webkit-scrollbar,
+.menu-content::-webkit-scrollbar,
+.slide-submenu .menu-content::-webkit-scrollbar {
+  width: 8px; /* Vertical scrollbar width */
+  height: 0; /* No horizontal scrollbar */
+}
+
+/* Hide horizontal scrollbars completely */
+#media-gallery::-webkit-scrollbar:horizontal,
+#playlist-container::-webkit-scrollbar:horizontal,
+.menu-content::-webkit-scrollbar:horizontal,
+.slide-submenu .menu-content::-webkit-scrollbar:horizontal {
+  display: none;
+}
+
+#media-gallery::-webkit-scrollbar-track,
+#playlist-container::-webkit-scrollbar-track,
+.menu-content::-webkit-scrollbar-track,
+.slide-submenu .menu-content::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+#media-gallery::-webkit-scrollbar-thumb,
+#playlist-container::-webkit-scrollbar-thumb,
+.menu-content::-webkit-scrollbar-thumb,
+.slide-submenu .menu-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+#media-gallery::-webkit-scrollbar-thumb:hover,
+#playlist-container::-webkit-scrollbar-thumb:hover,
+.menu-content::-webkit-scrollbar-thumb:hover,
+.slide-submenu .menu-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#media-gallery::-webkit-scrollbar-thumb:active,
+#playlist-container::-webkit-scrollbar-thumb:active,
+.menu-content::-webkit-scrollbar-thumb:active,
+.slide-submenu .menu-content::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Only show vertical scrollbar when content exceeds container height */
+#media-gallery,
+#playlist-container,
+.menu-content,
+.slide-submenu .menu-content {
+  scrollbar-gutter: stable;
+}
+
+/* Optional: Hide scrollbar when not hovering */
+#media-gallery:not(:hover)::-webkit-scrollbar-thumb,
+#playlist-container:not(:hover)::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+/* Fix media gallery to show exactly 3 items per row */
+#media-gallery {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important; /* Exactly 3 columns */
+  gap: 10px !important;
+  padding: 10px !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  height: 240px !important; /* Increased height for more media items */
+}
+
+/* Make the playlist container taller too */
+#playlist-container {
+  height: 240px !important; /* Match the media gallery height */
+}
+
+/* Ensure thumbnails maintain proper size for 3-column layout */
+.media-thumbnail {
+  width: 100% !important;
+  aspect-ratio: 1 !important;
+  max-width: none !important; /* Remove max-width to allow proper sizing */
+  justify-self: center !important;
+}
+
+/* Apply acrylic effect to containers */
+#media-gallery,
+#playlist-container {
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+  -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
+}
+
+/* Add the noise texture for acrylic effect */
+#media-gallery::before,
+#playlist-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: var(--acrylic-noise-opacity);
+  pointer-events: none;
+  z-index: -1;
+  animation: grain 8s steps(10) infinite;
+  border-radius: inherit;
+}
+
+/* Make buttons semitransparent and lock them in place */
+
+/* Fixed position container for playlist controls */
+#playlist-controls {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  gap: 10px;
+  background-color: rgba(0, 0, 0, 0.4); /* Semi-transparent background */
+  backdrop-filter: blur(var(--acrylic-blur));
+  -webkit-backdrop-filter: blur(var(--acrylic-blur));
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 5; /* Ensure buttons stay above other content */
+}
+
+/* Ensure the container has proper spacing */
+#playlist-section {
+  position: relative;
+  margin-top: 15px;
+  padding-bottom: 60px; /* Make space for fixed controls */
+}
+
+/* Make buttons semitransparent */
+.playlist-button {
+  flex: 1;
+  background-color: rgba(20, 20, 20, 0.4) !important; /* More transparent */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+/* Button hover effects with increased opacity */
+.playlist-button:hover {
+  background-color: rgba(40, 40, 40, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+/* Active state for button with press effect */
+.playlist-button:active {
+  transform: translateY(1px);
+}
+
+/* Play button styling */
+#playlist-play-button {
+  background-color: rgba(var(--primary-color-rgb, 200, 200, 200), 0.2) !important;
+  border-left: 3px solid var(--primary-color);
+}
+
+#playlist-play-button:hover {
+  background-color: rgba(var(--primary-color-rgb, 200, 200, 200), 0.3) !important;
+}
+
+/* Shuffle button active state */
+#playlist-shuffle-button.active {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-left: 3px solid var(--primary-color);
+}
+
+/* Clear button danger styling */
+#playlist-clear-button:hover {
+  background-color: rgba(244, 67, 54, 0.2) !important;
+  border-left: 3px solid var(--error-color);
+}
+
+/* Fix the button icon styling */
+.playlist-button span {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Disabled state for buttons */
+.playlist-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Initially hide the playlist controls */
+#playlist-controls {
+  visibility: hidden;
+}
+
+/* Make the buttons inside the playlist controls visible */
+#playlist-controls button {
+  visibility: visible;
+}
