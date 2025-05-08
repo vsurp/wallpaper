@@ -9,14 +9,14 @@
  * 5. App Structure
  * 6. Loading Screen
  * 7. Menu System
- * 8. UI Components (includes NEW Button Styles)
+ * 8. UI Components (Updated X button hover)
  * 9. Form Styles
  * 10. Tutorial and Help
  * 11. Debug Console
  * 12. Utility Classes
  * 13. Animations
- * 14. Enhanced Media UI (NOWA SEKCJA / ZMODYFIKOWANA)
- * 15. Enhanced Menu System for Effects & Transitions (NOWA SEKCJA)
+ * 14. Enhanced Media UI (Updated button styles/layout)
+ * 15. Enhanced Menu System for Effects & Transitions (Inline sliders)
  */
 
 /* ========== 1. IMPORTS AND RESETS ========== */
@@ -36,8 +36,8 @@
   --secondary-color: #2196f3;
   --background-color: #121212;
   --text-color: #ffffff;
-  --menu-background: rgba(20, 20, 20, 0.6); /* Tło dla menu i submenu */
-  --menu-item-background: rgba(0, 0, 0, 0.2); /* Tło dla elementów w menu (np. biblioteki) */
+  --menu-background: rgba(20, 20, 20, 0.6);
+  --menu-item-background: rgba(0, 0, 0, 0.2);
   --menu-hover: rgba(255, 255, 255, 0.1);
   --error-color: #f44336;
   --warning-color: #ff9800;
@@ -52,7 +52,8 @@
   /* Animation Timings */
   --menu-animation-time: 300ms;
   --tooltip-delay: 1000ms;
-  --dialog-animation-time: 300ms; /* Dla okien dialogowych */
+  --dialog-animation-time: 300ms;
+  --slider-transition-time: 250ms; /* For inline sliders */
 
 
   /* Sizes */
@@ -70,47 +71,31 @@
   --btn-text-transform: uppercase;
   --btn-letter-spacing: 0.5px;
   --btn-icon-spacing: 8px;
+
+  /* Main Menu Item Specifics (for matching size) */
+  --main-menu-item-padding-y: 0.8rem;
+  --main-menu-item-padding-x: 1rem;
+  --main-menu-item-font-size: 1.1rem;
 }
 
 /* ========== 3. WINDOWS 11 ACRYLIC EFFECT MIXINS ========== */
-@keyframes grain {
-  0%, 100% { transform: translate(0, 0); } 10% { transform: translate(-1%, -1%); } 20% { transform: translate(1%, 1%); } 30% { transform: translate(2%, -2%); } 40% { transform: translate(-2%, 2%); } 50% { transform: translate(-1%, 1%); } 60% { transform: translate(3%, -1%); } 70% { transform: translate(1%, 3%); } 80% { transform: translate(-3%, 1%); } 90% { transform: translate(1%, -2%); }
-}
-
-.acrylic {
-  position: relative;
-  backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
-  -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
-}
-
-.acrylic::before {
-  content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
-  opacity: var(--acrylic-noise-opacity); pointer-events: none; z-index: -1; animation: grain 8s steps(10) infinite; border-radius: inherit;
-}
-.acrylic-light { background-color: rgba(255, 255, 255, 0.1); }
-.acrylic-dark { background-color: rgba(0, 0, 0, 0.6); }
+@keyframes grain { 0%, 100% { transform: translate(0, 0); } 10% { transform: translate(-1%, -1%); } 20% { transform: translate(1%, 1%); } 30% { transform: translate(2%, -2%); } 40% { transform: translate(-2%, 2%); } 50% { transform: translate(-1%, 1%); } 60% { transform: translate(3%, -1%); } 70% { transform: translate(1%, 3%); } 80% { transform: translate(-3%, 1%); } 90% { transform: translate(1%, -2%); } }
+.acrylic { position: relative; backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); }
+.acrylic::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"); opacity: var(--acrylic-noise-opacity); pointer-events: none; z-index: -1; animation: grain 8s steps(10) infinite; border-radius: inherit; }
+.acrylic-light { background-color: rgba(255, 255, 255, 0.1); } .acrylic-dark { background-color: rgba(0, 0, 0, 0.6); }
 
 /* ========== 4. BASE STYLES ========== */
-body {
-  font-family: 'Barlow', sans-serif; background-color: var(--background-color); color: var(--text-color);
-  overflow: hidden; height: 100vh; width: 100vw; position: relative;
-}
-body::before { /* Grid background */
-  content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background-image: linear-gradient(rgba(0, 0, 0, 0.9) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.9) 1px, transparent 1px);
-  background-size: 5px 5px; z-index: -1; opacity: 0.3; pointer-events: none;
-}
+body { font-family: 'Barlow', sans-serif; background-color: var(--background-color); color: var(--text-color); overflow: hidden; height: 100vh; width: 100vw; position: relative; }
+body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(0, 0, 0, 0.9) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.9) 1px, transparent 1px); background-size: 5px 5px; z-index: -1; opacity: 0.3; pointer-events: none; }
 div, h1, h2, h3, p, span, label, button, input, select, textarea { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
 input, textarea, select { user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; }
-
 
 /* ========== 5. APP STRUCTURE ========== */
 #app-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
 .module-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 #background-container { z-index: 1; } #media-container { z-index: 2; } #visualizer-container { z-index: 3; pointer-events: none; }
 
-/* ========== 6. LOADING SCREEN (bez zmian) ========== */
+/* ========== 6. LOADING SCREEN ========== */
 #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--background-color); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .loading-container { text-align: center; width: 80%; max-width: 400px; }
 .loading-logo { font-size: 2.5rem; font-weight: 800; margin-bottom: 2rem; color: var(--primary-color); text-transform: uppercase; letter-spacing: 1px; }
@@ -118,168 +103,41 @@ input, textarea, select { user-select: text; -webkit-user-select: text; -moz-use
 .progress-bar { height: 100%; background-color: var(--primary-color); width: 0; transition: width 0.3s cubic-bezier(0.43, 0, 0.15, 1); }
 .loading-status { font-size: 0.9rem; color: rgba(255, 255, 255, 0.7); }
 
-
-/* ========== 7. MENU SYSTEM (Poprawki dla submenu-wrapper i przywrócenie menu-hover-area) ========== */
+/* ========== 7. MENU SYSTEM ========== */
 .menu-trigger { position: absolute; top: 0; width: 20px; height: 100%; z-index: 90; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .menu-trigger.right { position: fixed; top: 50%; right: 0; transform: translateY(-50%); width: 30px; height: 60px; background-color: rgba(0, 0, 0, 0.7); border-top-left-radius: 5px; border-bottom-left-radius: 5px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 99; opacity: 0; transition: opacity 0.3s cubic-bezier(0.43, 0, 0.15, 1); }
-.menu-trigger.left { left: 0; } /* Jeśli potrzebne dla lewego menu */
+.menu-trigger.left { left: 0; }
 .trigger-indicator { width: 6px; height: 40px; background-color: var(--primary-color); border-radius: 3px; opacity: 0.6; transition: opacity 0.2s cubic-bezier(0.43, 0, 0.15, 1); }
 .menu-trigger:hover .trigger-indicator { opacity: 1; }
-
-/* PRZYWRÓCONE STYLE DLA MENU-HOVER-AREA */
-.menu-hover-area {
-  position: fixed;
-  top: 0;
-  right: 0; /* Dla prawego menu */
-  width: 20%; /* Szerokość obszaru do najechania */
-  height: 100%;
-  z-index: 98; /* Poniżej samego triggera, ale powyżej treści strony */
-  pointer-events: auto; /* Musi przechwytywać zdarzenia myszy */
-}
-.menu-hover-area:hover .menu-trigger.right,
-.menu-trigger.right:hover {
-  opacity: 1; /* Pokazuje trigger po najechaniu */
-}
-
-
-.menu-container { position: fixed; top: 0; right: 0; height: 100%; width: var(--menu-width); z-index: 1000; pointer-events: none; overflow: hidden; }
-
-
-#main-menu {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: var(--menu-width);
-  height: 100%;
-  background-color: var(--menu-background);
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  transform: translateX(100%);
-  transition: transform var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
-  display: flex;
-  flex-direction: column;
-  pointer-events: all;
-  overflow: hidden;
-}
-#main-menu.active {
-  transform: translateX(0);
-}
-
-.submenu-wrapper {
-  position: fixed;
-  top: 0;
-  right: var(--menu-width);
-  height: 100vh;
-  width: 0;
-  overflow: hidden;
-  z-index: 101;
-  transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
-  pointer-events: none;
-}
-.submenu-wrapper.active {
-  width: var(--submenu-width);
-  pointer-events: all;
-}
-
-.slide-submenu {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  width: var(--submenu-width);
-  background-color: var(--menu-background);
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
-  visibility 0s linear var(--menu-animation-time);
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-}
-.slide-submenu.active {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: all;
-  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
-  visibility 0s linear 0s;
-}
-
-
-.menu-header {
-  height: var(--header-height);
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
-}
+.menu-hover-area { position: fixed; top: 0; right: 0; width: 20%; height: 100%; z-index: 98; pointer-events: auto; }
+.menu-hover-area:hover .menu-trigger.right, .menu-trigger.right:hover { opacity: 1; }
+#main-menu { position: fixed; top: 0; right: 0; width: var(--menu-width); height: 100%; background-color: var(--menu-background); box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2); z-index: 1000; transform: translateX(100%); transition: transform var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1); display: flex; flex-direction: column; pointer-events: all; overflow: hidden; }
+#main-menu.active { transform: translateX(0); }
+.submenu-wrapper { position: fixed; top: 0; right: var(--menu-width); height: 100vh; width: 0; overflow: hidden; z-index: 101; transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1); pointer-events: none; }
+.submenu-wrapper.active { width: var(--submenu-width); pointer-events: all; }
+.slide-submenu { position: absolute; top: 0; right: 0; height: 100vh; width: var(--submenu-width); background-color: var(--menu-background); box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2); overflow: hidden; border-left: 1px solid rgba(255, 255, 255, 0.08); opacity: 0; visibility: hidden; transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1), visibility 0s linear var(--menu-animation-time); pointer-events: none; display: flex; flex-direction: column; }
+.slide-submenu.active { opacity: 1; visibility: visible; pointer-events: all; transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1), visibility 0s linear 0s; }
+.submenu-wrapper-l2 { position: fixed; top: 0; right: calc(var(--menu-width) + var(--submenu-width)); height: 100vh; width: 0; overflow: hidden; transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1); pointer-events: none; z-index: 102; }
+.submenu-wrapper-l2.active { width: var(--submenu-width); pointer-events: all; }
+.slide-submenu-l2 { position: absolute; top: 0; right: 0; height: 100vh; width: var(--submenu-width); background-color: var(--menu-background); box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2); overflow: hidden; border-left: 1px solid rgba(255, 255, 255, 0.08); opacity: 0; visibility: hidden; transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1), visibility 0s linear var(--menu-animation-time); pointer-events: none; display: flex; flex-direction: column; }
+.slide-submenu-l2.active { opacity: 1; visibility: visible; pointer-events: all; transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1), visibility 0s linear 0s; }
+/* L3 Wrapper and Panel Removed */
+.menu-header { height: var(--header-height); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); flex-shrink: 0; }
 .menu-header h1 { font-size: 1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-
-.menu-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-.menu-content::-webkit-scrollbar { width: 6px; }
-.menu-content::-webkit-scrollbar-track { background: transparent; }
-.menu-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
-.menu-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
-
-
-.menu-section { margin-bottom: 2rem; }
+.menu-content { flex: 1; overflow-y: auto; padding: 1rem; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+.menu-content::-webkit-scrollbar { width: 6px; } .menu-content::-webkit-scrollbar-track { background: transparent; } .menu-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; } .menu-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+.menu-section { margin-bottom: 1.5rem; } .menu-section:last-child { margin-bottom: 0; }
 .menu-section h2 { font-size: 3rem; text-transform: uppercase; font-weight: 900; color: transparent; -webkit-text-stroke: 1px var(--text-color); letter-spacing: 0.05em; line-height: 1; margin-bottom: 1rem; }
 .menu-section h2:hover { color: var(--text-color); text-shadow: 0 0 10px rgba(255, 255, 255, 0.2); }
-
-.menu-footer {
-  height: var(--footer-height);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
+.menu-footer { height: var(--footer-height); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; flex-shrink: 0; }
 .version-info { opacity: 0.7; }
-
-.category-item, .menu-item, .submenu-item {
-  display: block;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
-  text-transform: uppercase;
-  font-weight: bold;
-  letter-spacing: 0.05em;
-  background-color: transparent;
-  border: none;
-  border-radius: var(--btn-border-radius);
-  transition: background-color 0.2s, color 0.2s;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  color: var(--text-color);
-  user-select: none;
-  text-align: left;
-}
-.category-item:hover, .menu-item:hover, .submenu-item:hover {
-  background-color: var(--menu-hover);
-  color: var(--primary-color);
-}
-.menu-item.selected, .category-item.selected, .submenu-item.active {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: var(--primary-color);
-}
-
+.category-item, .menu-item, .submenu-item, .submenu-item-l2 { display: block; padding: var(--main-menu-item-padding-y) var(--main-menu-item-padding-x); margin-bottom: 0.5rem; font-size: var(--main-menu-item-font-size); text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; background-color: transparent; border: none; border-radius: var(--btn-border-radius); transition: background-color 0.2s, color 0.2s; cursor: pointer; position: relative; overflow: hidden; color: var(--text-color); user-select: none; text-align: left; }
+.category-item:hover, .menu-item:hover, .submenu-item:hover, .submenu-item-l2:hover { background-color: var(--menu-hover); color: var(--primary-color); }
+.menu-item.selected, .category-item.selected, .submenu-item.selected, .submenu-item-l2.selected { background-color: rgba(255, 255, 255, 0.15); color: var(--primary-color); }
 .divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 10px 0; }
+.menu-close, .submenu-close, .submenu-close-l2 { font-size: 1.8rem; } /* L3 close removed */
 
-
-/* ========== 8. UI COMPONENTS (bez zmian) ========== */
+/* ========== 8. UI COMPONENTS (Updated X button hover) ========== */
 button, input[type="button"], input[type="submit"], input[type="reset"] { margin: 0; padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; outline: none; -webkit-appearance: none; -moz-appearance: none; appearance: none;}
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: var(--btn-padding-y) var(--btn-padding-x); font-size: var(--btn-font-size); font-weight: var(--btn-font-weight); color: var(--text-color); background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: var(--btn-border-radius); text-transform: var(--btn-text-transform); letter-spacing: var(--btn-letter-spacing); transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, opacity 0.2s ease; user-select: none; position: relative; overflow: hidden; }
 .btn:hover { background-color: rgba(255, 255, 255, 0.2); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
@@ -295,9 +153,14 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 .btn-text { background-color: transparent; border-color: transparent; box-shadow: none; }
 .btn-text:hover { background-color: rgba(255, 255, 255, 0.08); }
 .btn-icon { background: transparent; border: none; color: var(--text-color); padding: 8px; border-radius: 50%; line-height: 1; font-size: 1.5rem; transition: color 0.2s ease, transform 0.1s ease, background-color 0.2s ease; }
-.btn-icon:hover { background-color: rgba(255,255,255,0.1); color: var(--primary-color); }
 .btn-icon:active { transform: translateY(1px); }
 .btn-icon svg { width: 1em; height: 1em; fill: currentColor; }
+/* Specific hover for menu close buttons */
+.menu-close:hover, .submenu-close:hover, .submenu-close-l2:hover {
+  background-color: rgba(255, 255, 255, 0.1); /* Subtle background */
+  color: var(--primary-color);
+  border-radius: var(--btn-border-radius); /* Use standard radius */
+}
 .btn-acrylic { backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
 .btn-acrylic::before { border-radius: inherit; }
 .btn-acrylic:hover { background-color: rgba(255, 255, 255, 0.1); }
@@ -308,966 +171,192 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 #notification-container { position: fixed; top: 10px; right: 10px; z-index: 1050; visibility: hidden; }
 .notification { position: relative; background-color: var(--menu-background); color: white; margin: 10px; padding: 15px 20px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); max-width: 350px; transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.43, 0, 0.15, 1); }
 .notification.show { transform: translateX(0); }
+.notification-content { margin-right: 20px; }
+.notification-close { position: absolute; top: 5px; right: 5px; font-size: 1.2rem; padding: 5px; }
 .notification.info { border-left: 4px solid var(--info-color); } .notification.error { border-left: 4px solid var(--error-color); } .notification.warning { border-left: 4px solid var(--warning-color); } .notification.success { border-left: 4px solid var(--success-color); }
-.notification-close { font-size: 1.2rem; }
 #modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; z-index: 1100; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.modal { background-color: var(--menu-background); border-radius: 5px; max-width: 500px; width: 90%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); }
+.modal { background-color: var(--menu-background); border-radius: 5px; max-width: 500px; width: 90%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); opacity: 0; transform: scale(0.95); transition: opacity var(--dialog-animation-time) ease, transform var(--dialog-animation-time) ease; }
+.modal.show { opacity: 1; transform: scale(1); }
 .modal-header { padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 .modal-footer { padding: 15px 20px; display: flex; justify-content: flex-end; border-top: 1px solid rgba(255, 255, 255, 0.1); gap: 10px; }
-.menu-close, .submenu-close { font-size: 1.8rem; }
 
-
-/* ========== 9. FORM STYLES (drobne dodatki dla okna ustawień mediów) ========== */
+/* ========== 9. FORM STYLES ========== */
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; }
-.form-group input[type="text"],
-.form-group input[type="number"],
-.form-group input[type="range"],
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: white;
-  border-radius: var(--btn-border-radius);
-  font-size: 0.9rem;
-}
+.form-group input[type="text"], .form-group input[type="number"], .form-group input[type="range"], .form-group textarea, .form-group select { width: 100%; padding: 8px 12px; background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: white; border-radius: var(--btn-border-radius); font-size: 0.9rem; }
 .form-group input[type="range"] { padding: 0; }
 .form-group textarea { resize: vertical; min-height: 80px; }
 .setting-description { font-size: 0.9em; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
 .setting-btn { width: 100%; margin-top: 10px; text-transform: none; }
 
+/* ========== 10. TUTORIAL AND HELP ========== */
+.tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
+.tutorial-overlay.active { opacity: 1; visibility: visible; transition-delay: 0s; }
+.tutorial-content { background-color: var(--menu-background); padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.tutorial-content h2 { margin-bottom: 15px; color: var(--primary-color); }
+.tutorial-content p { margin-bottom: 20px; line-height: 1.6; color: rgba(255,255,255,0.8); }
 
-/* ========== 10. TUTORIAL AND HELP (bez zmian) ========== */
-/* ... */
-/* ========== 11. DEBUG CONSOLE (bez zmian) ========== */
-/* ... */
-/* ========== 12. UTILITY CLASSES (bez zmian) ========== */
-/* ... */
-/* ========== 13. ANIMATIONS (bez zmian) ========== */
-/* ... */
+/* ========== 11. DEBUG CONSOLE ========== */
+#debug-console { position: fixed; bottom: 0; left: 0; width: 100%; max-height: 30vh; background-color: rgba(10,10,10,0.9); border-top: 1px solid rgba(255,255,255,0.1); z-index: 1500; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 0.8rem; color: #ccc; display: none; }
+#debug-console.active { display: block; }
+.debug-log-entry { padding: 2px 0; border-bottom: 1px dotted rgba(255,255,255,0.05); }
+.debug-log-entry.error { color: var(--error-color); } .debug-log-entry.warning { color: var(--warning-color); } .debug-log-entry.info { color: var(--info-color); }
 
+/* ========== 12. UTILITY CLASSES ========== */
+.hidden { display: none !important; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.text-center { text-align: center; } .text-primary { color: var(--primary-color); }
+.mt-1 { margin-top: 0.5rem; } .mb-1 { margin-bottom: 0.5rem; } .p-1 { padding: 0.5rem; }
 
-/* ========== 14. ENHANCED MEDIA UI (NOWA SEKCJA / ZMODYFIKOWANA) ========== */
+/* ========== 13. ANIMATIONS ========== */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideOutRight { from { transform: translateX(0); } to { transform: translateX(100%); } }
 
-#import-media-submenu .menu-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 10px;
-  gap: 10px;
-  overflow: hidden;
-}
-
-#import-media-submenu .submenu-item[data-action="import-media"] {
-  flex-shrink: 0;
-  margin-bottom: 5px;
-}
-
-#import-media-submenu #media-library-section,
-#import-media-submenu #playlist-section {
-  flex-grow: 1;
-  flex-basis: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background-color: var(--menu-item-background);
-  border-radius: var(--btn-border-radius);
-  padding: 10px;
-}
-
-#import-media-submenu #media-library-section h3,
-#import-media-submenu #playlist-section h3 {
-  flex-shrink: 0;
-  margin-bottom: 8px;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.6);
-}
-
-#import-media-submenu #media-gallery,
-#import-media-submenu #playlist-container {
-  flex-grow: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-radius: calc(var(--btn-border-radius) - 4px);
-}
-
-
-#import-media-submenu #media-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-  gap: 8px;
-}
-
-#import-media-submenu #playlist-container {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-#import-media-submenu .media-thumbnail {
-  aspect-ratio: 1 / 1;
-  background-color: rgba(0,0,0,0.2);
-  border-radius: var(--btn-border-radius);
-  overflow: hidden;
-  position: relative;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid transparent;
-}
-#import-media-submenu .media-thumbnail:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  border-color: rgba(var(--primary-color-rgb), 0.5);
-}
-#import-media-submenu .media-thumbnail.dragging {
-  opacity: 0.5;
-  border: 1px dashed var(--primary-color);
-}
-
-#import-media-submenu .media-thumbnail-img-container {
-  width: 100%;
-  flex-grow: 1;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-#import-media-submenu .media-thumbnail-name {
-  font-size: 0.7rem;
-  padding: 4px 6px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background-color: rgba(0,0,0,0.3);
-  flex-shrink: 0;
-}
-
-#import-media-submenu .media-type-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background-color: rgba(0,0,0,0.7);
-  color: white;
-  font-size: 0.6rem;
-  padding: 2px 4px;
-  border-radius: 2px;
-  font-weight: bold;
-}
-
-#import-media-submenu .media-settings-btn,
-#import-media-submenu .media-delete-btn {
-  position: absolute;
-  opacity: 0;
-  transition: opacity 0.2s ease, background-color 0.2s ease;
-  padding: 4px !important;
-  font-size: 1rem !important;
-  border-radius: 50%;
-  background-color: rgba(0,0,0,0.5);
-}
-#import-media-submenu .media-settings-btn:hover,
-#import-media-submenu .media-delete-btn:hover {
-  background-color: rgba(0,0,0,0.8);
-  color: var(--primary-color);
-}
-#import-media-submenu .media-thumbnail:hover .media-settings-btn,
-#import-media-submenu .media-thumbnail:hover .media-delete-btn {
-  opacity: 1;
-}
+/* ========== 14. ENHANCED MEDIA UI ========== */
+#import-media-submenu .menu-content { display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 10px; overflow: hidden; }
+#import-media-submenu .import-media-button { padding: var(--main-menu-item-padding-y) var(--main-menu-item-padding-x); font-size: var(--main-menu-item-font-size); flex-shrink: 0; }
+#import-media-submenu #media-library-section, #import-media-submenu #playlist-section { flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; overflow: hidden; background-color: var(--menu-item-background); border-radius: var(--btn-border-radius); padding: 10px; }
+#import-media-submenu #media-library-section h3, #import-media-submenu #playlist-section h3 { flex-shrink: 0; margin-bottom: 8px; font-size: 0.8rem; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+#import-media-submenu #media-gallery, #import-media-submenu #playlist-container { flex-grow: 1; overflow-y: auto; overflow-x: hidden; border-radius: calc(var(--btn-border-radius) - 4px); }
+#import-media-submenu #media-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+#import-media-submenu #playlist-container { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+#quick-nav-section { display: flex; flex-shrink: 0; }
+#quick-nav-section .quick-nav-button { flex: 1; font-size: 0.8rem; padding: 8px 12px; border-radius: var(--btn-border-radius); border: 1px solid rgba(255, 255, 255, 0.1); background-color: rgba(255, 255, 255, 0.05); color: var(--text-color); text-transform: uppercase; font-weight: 600; transition: all 0.2s ease; text-align: center; cursor: pointer; }
+#quick-nav-section .quick-nav-button:hover { background-color: rgba(255, 255, 255, 0.1); border-color: rgba(var(--primary-color-rgb), 0.5); }
+#playlist-transitions-button { width: 100%; margin-top: 10px; margin-bottom: 10px; font-size: 0.8rem; padding: 8px 12px; flex-shrink: 0; }
+#import-media-submenu .media-thumbnail { aspect-ratio: 1 / 1; background-color: rgba(0,0,0,0.2); border-radius: var(--btn-border-radius); overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; display: flex; flex-direction: column; border: 1px solid transparent; }
+#import-media-submenu .media-thumbnail:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); border-color: rgba(var(--primary-color-rgb), 0.5); }
+#import-media-submenu .media-thumbnail.dragging { opacity: 0.5; border: 1px dashed var(--primary-color); }
+#import-media-submenu .media-thumbnail-img-container { width: 100%; flex-grow: 1; background-size: cover; background-position: center; background-repeat: no-repeat; border-bottom: 1px solid rgba(255,255,255,0.05); }
+#import-media-submenu .media-thumbnail-name { font-size: 0.7rem; padding: 4px 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: rgba(0,0,0,0.3); flex-shrink: 0; }
+#import-media-submenu .media-type-badge { position: absolute; top: 4px; right: 4px; background-color: rgba(0,0,0,0.7); color: white; font-size: 0.6rem; padding: 2px 4px; border-radius: 2px; font-weight: bold; }
+#import-media-submenu .media-settings-btn, #import-media-submenu .media-delete-btn { position: absolute; opacity: 0; transition: opacity 0.2s ease, background-color 0.2s ease; padding: 4px !important; font-size: 1rem !important; border-radius: 50%; background-color: rgba(0,0,0,0.5); z-index: 2; }
+#import-media-submenu .media-settings-btn:hover, #import-media-submenu .media-delete-btn:hover { background-color: rgba(0,0,0,0.8); color: var(--primary-color); }
+#import-media-submenu .media-thumbnail:hover .media-settings-btn, #import-media-submenu .media-thumbnail:hover .media-delete-btn { opacity: 1; }
 #import-media-submenu .media-settings-btn { top: 5px; left: 5px; }
 #import-media-submenu .media-delete-btn { top: 5px; right: 5px; }
-
-
-#import-media-submenu .playlist-item {
-  display: flex;
-  align-items: center;
-  padding: 6px 8px;
-  background-color: rgba(255,255,255,0.03);
-  border-radius: var(--btn-border-radius);
-  cursor: grab;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  border: 1px solid transparent;
-}
-#import-media-submenu .playlist-item:hover {
-  background-color: rgba(255,255,255,0.07);
-}
-#import-media-submenu .playlist-item.current {
-  background-color: rgba(var(--primary-color-rgb), 0.15);
-  border-left: 3px solid var(--primary-color);
-  padding-left: 5px;
-}
-#import-media-submenu .playlist-item.dragging {
-  opacity: 0.6;
-  background-color: rgba(var(--primary-color-rgb), 0.2);
-}
+#import-media-submenu .playlist-item { display: flex; align-items: center; padding: 6px 8px; background-color: rgba(255,255,255,0.03); border-radius: var(--btn-border-radius); cursor: grab; transition: background-color 0.2s ease, border-color 0.2s ease; border: 1px solid transparent; position: relative; }
+#import-media-submenu .playlist-item:hover { background-color: rgba(255,255,255,0.07); }
+#import-media-submenu .playlist-item.current { background-color: rgba(var(--primary-color-rgb), 0.1); border-left: 3px solid var(--primary-color); padding-left: 5px; }
+#import-media-submenu .playlist-item.dragging { opacity: 0.6; background-color: rgba(var(--primary-color-rgb), 0.2); }
 #import-media-submenu .playlist-item.drag-over-top { border-top: 2px solid var(--primary-color); }
 #import-media-submenu .playlist-item.drag-over-bottom { border-bottom: 2px solid var(--primary-color); }
-
-
-#import-media-submenu .playlist-item-thumbnail {
-  width: 36px;
-  height: 36px;
-  background-size: cover;
-  background-position: center;
-  border-radius: 3px;
-  margin-right: 10px;
-  flex-shrink: 0;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  color: rgba(255,255,255,0.7);
-}
-#import-media-submenu .playlist-item-trim-indicator {
-  position: absolute; bottom: 1px; right: 1px; font-size: 0.6rem; line-height: 1;
-  background-color: rgba(0,0,0,0.5); padding: 1px; border-radius: 2px;
-}
-#import-media-submenu .playlist-item-playing-indicator {
-  position: absolute; top: 1px; left: 1px; font-size: 0.6rem; line-height: 1;
-  background-color: rgba(0,0,0,0.5); color: var(--success-color); padding: 2px;
-  border-radius: 50%; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;
-}
-
+#import-media-submenu .playlist-item-thumbnail { width: 36px; height: 36px; background-size: cover; background-position: center; border-radius: 3px; margin-right: 10px; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(255,255,255,0.7); }
+#import-media-submenu .playlist-item-trim-indicator { position: absolute; bottom: 1px; right: 1px; font-size: 0.6rem; line-height: 1; background-color: rgba(0,0,0,0.5); padding: 1px; border-radius: 2px; }
+#import-media-submenu .playlist-item-playing-indicator { position: absolute; top: 1px; left: 1px; font-size: 0.6rem; line-height: 1; background-color: rgba(0,0,0,0.5); color: var(--success-color); padding: 2px; border-radius: 50%; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; }
 #import-media-submenu .playlist-item-info { flex-grow: 1; overflow: hidden; }
 #import-media-submenu .playlist-item-name { font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color); margin-bottom: 2px; }
 #import-media-submenu .playlist-item-details { font-size: 0.7rem; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #import-media-submenu .playlist-item-delete { margin-left: auto; padding: 4px !important; font-size: 0.9rem !important; opacity: 0.6; }
 #import-media-submenu .playlist-item-delete:hover { opacity: 1; }
-
-
-#import-media-submenu #playlist-controls {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0 0 0;
-  gap: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  margin-top: 8px;
-}
-
-#import-media-submenu .playlist-button {
-  flex: 1;
-  font-size: 0.7rem;
-  padding: 6px 8px;
-  text-transform: none;
-}
+#import-media-submenu #playlist-controls { flex-shrink: 0; display: flex; justify-content: space-between; padding: 8px 0 0 0; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 8px; }
+#import-media-submenu .playlist-button { flex: 1; font-size: 0.7rem; padding: 6px 8px; text-transform: none; }
 #import-media-submenu .playlist-button span { margin-right: 4px; font-size: 0.8em; }
-
-#import-media-submenu #playlist-shuffle-button.active {
-  background-color: rgba(var(--primary-color-rgb), 0.25) !important;
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-
-/* Style dla okna dialogowego ustawień mediów */
-.media-settings-dialog-backdrop {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); z-index: 1050;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity var(--dialog-animation-time) ease;
-}
+#import-media-submenu #playlist-shuffle-button.active { background-color: rgba(var(--primary-color-rgb), 0.25) !important; border-color: var(--primary-color); color: var(--primary-color); }
+.media-settings-dialog-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1050; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity var(--dialog-animation-time) ease; }
 .media-settings-dialog-backdrop.open { opacity: 1; }
-
-.media-settings-dialog {
-  width: 90%; max-width: 450px; background-color: var(--menu-background);
-  border-radius: 8px; box-shadow: 0 5px 25px rgba(0,0,0,0.3);
-  display: flex; flex-direction: column; max-height: 80vh;
-  transform: scale(0.95) translateY(10px); opacity: 0;
-  transition: transform var(--dialog-animation-time) cubic-bezier(0.18, 0.89, 0.32, 1.28),
-  opacity var(--dialog-animation-time) ease;
-}
+.media-settings-dialog { width: 90%; max-width: 450px; background-color: var(--menu-background); border-radius: 8px; box-shadow: 0 5px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 80vh; transform: scale(0.95) translateY(10px); opacity: 0; transition: transform var(--dialog-animation-time) cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity var(--dialog-animation-time) ease; }
 .media-settings-dialog.open { transform: scale(1) translateY(0); opacity: 1; }
 .media-settings-dialog.acrylic::before { border-radius: 8px; }
-
-
-.media-settings-dialog-header {
-  padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
-  display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-}
-.media-settings-dialog-header h3 {
-  font-size: 1rem; font-weight: 600; margin: 0; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 40px);
-}
+.media-settings-dialog-header { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.media-settings-dialog-header h3 { font-size: 1rem; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 40px); }
 .dialog-close-btn { font-size: 1.5rem !important; padding: 4px !important; }
+.media-settings-dialog-body { padding: 15px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 12px; }
+.media-settings-dialog-footer { padding: 12px 15px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+#import-media-submenu .menu-content > .divider { flex-shrink: 0; border-top-width: 1px; margin: 5px 0; border-color: rgba(255,255,255,0.05); }
+.media-active-highlight-ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; display: none; box-sizing: border-box; z-index: 1; }
+.media-active-highlight-ring::before { content: ''; position: absolute; box-sizing: border-box; top: 50%; left: 50%; transform: translate(-50%, -50%); width: calc(100% - 6px); height: calc(100% - 6px); border-radius: inherit; border: 3px solid transparent; border-top-color: var(--primary-color); border-right-color: var(--primary-color); animation: spinHighlightRing 1.5s linear infinite; }
+#import-media-submenu .playlist-item .media-active-highlight-ring::before { width: calc(100% - 4px); height: calc(100% - 4px); border-width: 2px; }
+@keyframes spinHighlightRing { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+.playing-from-here > .media-active-highlight-ring { display: block; }
+#import-media-submenu .media-thumbnail.selected { border: 2px solid var(--primary-color); box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.6); z-index: 2; }
+.selection-box { position: absolute; border: 1px solid var(--primary-color); background-color: rgba(var(--primary-color-rgb), 0.1); pointer-events: none; z-index: 10; }
+.selection-info { font-size: 10px; color: rgba(255, 255, 255, 0.5); margin-bottom: 8px; text-align: center; flex-shrink: 0; }
+.settings-tooltip { background-color: rgba(var(--primary-color-rgb), 0.1); padding: 8px; border-radius: 4px; font-size: 12px; margin-bottom: 15px; color: var(--primary-color); text-align: center; border: 1px dashed rgba(var(--primary-color-rgb), 0.5); }
+.custom-notification { position: fixed; top: 20px; right: 20px; background-color: rgba(0, 0, 0, 0.8); color: white; padding: 10px 15px; border-radius: 4px; z-index: 9999; max-width: 300px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); transition: opacity 0.3s ease, transform 0.3s ease; }
+.custom-notification.info { border-left: 4px solid var(--info-color, #2196f3); }
+.custom-notification.success { border-left: 4px solid var(--success-color, #4caf50); }
+.custom-notification.warning { border-left: 4px solid var(--warning-color, #ff9800); }
+.custom-notification.error { border-left: 4px solid var(--error-color, #f44336); }
+.trim-description { font-size: 12px; margin-bottom: 10px; color: rgba(255, 255, 255, 0.7); }
+@media (max-width: 400px) { #import-media-submenu #media-gallery { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); } .submenu-item, .category-item, .menu-item { padding: 0.75rem; font-size: 1rem; } .media-settings-dialog { width: 95%; } }
 
-.media-settings-dialog-body {
-  padding: 15px; overflow-y: auto; flex-grow: 1;
-  display: flex; flex-direction: column; gap: 12px;
+/* ========== 15. ENHANCED MENU SYSTEM FOR EFFECTS & TRANSITIONS (Inline sliders) ========== */
+
+/* Style for L2 items when their slider is expanded */
+.submenu-item-l2.expanded {
+  background-color: rgba(255, 255, 255, 0.05); /* Slightly different background */
+  margin-bottom: 0; /* Remove margin when expanded */
+  border-bottom-left-radius: 0; /* Flatten bottom corners */
+  border-bottom-right-radius: 0;
 }
 
-.media-settings-dialog-footer {
-  padding: 12px 15px; border-top: 1px solid rgba(255,255,255,0.1);
-  display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0;
-}
-
-/* Style dla okna przycinania (trim-dialog) */
-.trim-dialog-backdrop { transition: opacity var(--dialog-animation-time) ease; }
-.trim-dialog { transition: opacity var(--dialog-animation-time) ease, transform var(--dialog-animation-time) ease; }
-
-#import-media-submenu .menu-content > .divider {
-  flex-shrink: 0;
-  border-top-width: 1px;
-  margin: 5px 0;
-  border-color: rgba(255,255,255,0.05);
-}
-
-/* Upewnijmy się, że elementy, które mogą być podświetlone, mają position: relative */
-#import-media-submenu .media-thumbnail,
-#import-media-submenu .playlist-item {
-  position: relative; /* Niezbędne dla absolutnego pozycjonowania pierścienia podświetlenia */
-}
-
-/* Styl dla animowanego pierścienia podświetlenia */
-.media-active-highlight-ring {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit; /* Dziedziczy border-radius od rodzica */
-  pointer-events: none;   /* Aby element nie blokował interakcji z elementem pod spodem */
-  display: none;          /* Domyślnie ukryty */
-  box-sizing: border-box;
-  z-index: 1; /* Aby było nad obrazkiem/tłem, ale pod przyciskami, jeśli są na wierzchu */
-}
-
-.media-active-highlight-ring::before {
-  content: '';
-  position: absolute;
-  box-sizing: border-box;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%); /* Centrowanie */
-  width: calc(100% - 6px); /* Dostosuj grubość "marginesu" pierścienia od krawędzi */
-  height: calc(100% - 6px);
-  border-radius: 50%; /* Idealne koło */
-  border: 3px solid transparent; /* Grubość linii koła */
-  border-top-color: var(--primary-color); /* Kolor aktywnej części koła */
-  /* Aby uzyskać efekt "niezamkniętego" koła, można użyć tylko border-top-color
-     lub kombinacji np. border-top-color i border-left-color */
-  /* border-left-color: var(--primary-color); */
-  animation: spinHighlightRing 0.8s linear infinite;
-}
-
-/* Dostosowanie dla mniejszych elementów playlisty */
-#import-media-submenu .playlist-item .media-active-highlight-ring::before {
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  border-width: 2px; /* Cieńszy pierścień dla playlisty */
-}
-
-@keyframes spinHighlightRing {
-  0% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-/* Klasa dodawana do elementu (thumbnail lub playlist item) wskazująca, że to stąd gra */
-.playing-from-here > .media-active-highlight-ring {
-  display: block; /* Pokaż podświetlenie */
-}
-
-/* Dodatkowe style dla .current na playliście, aby nie kolidowało z nowym podświetleniem */
-#import-media-submenu .playlist-item.current {
-  background-color: rgba(var(--primary-color-rgb), 0.1); /* Subtelniejsze tło, jeśli jest animacja */
-  /* border-left: 3px solid var(--primary-color); Można zostawić lub usunąć, jeśli animacja wystarcza */
-}
-
-/* Upewnij się, że przyciski na miniaturkach są nad podświetleniem */
-#import-media-submenu .media-settings-btn,
-#import-media-submenu .media-delete-btn {
-  z-index: 2;
-}
-
-/* Dodatkowe style dla implementacji nowych funkcji*/
-
-/* Styl dla zaznaczonych elementów w bibliotece mediów */
-#import-media-submenu .media-thumbnail.selected {
-  border: 2px solid var(--primary-color);
-  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.6);
-}
-
-/* Styl dla ramki zaznaczania (selection box) */
-.selection-box {
-  position: absolute;
-  border: 1px solid var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Style dla przycisków szybkiej nawigacji */
-#quick-nav-section {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-#quick-nav-section .quick-nav-button {
-  flex: 1;
-  font-size: 0.8rem;
-  padding: 8px 12px;
-  border-radius: var(--btn-border-radius);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-color);
-  text-transform: uppercase;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  text-align: center;
-  cursor: pointer;
-}
-
-#quick-nav-section .quick-nav-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(var(--primary-color-rgb), 0.5);
-}
-
-/* Styl dla informacji o zaznaczaniu */
-.selection-info {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-/* Style dla animowanego pierścienia podświetlenia aktywnego elementu */
-.media-active-highlight-ring {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  pointer-events: none;
-  display: none;
-  box-sizing: border-box;
-  z-index: 1;
-}
-
-.media-active-highlight-ring::before {
-  content: '';
-  position: absolute;
-  box-sizing: border-box;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
-  border-radius: var(--btn-border-radius);
-  border: 3px solid transparent;
-  border-top-color: var(--primary-color);
-  border-right-color: var(--primary-color);
-  animation: spinHighlightRing 1.5s linear infinite;
-}
-
-/* Dostosowanie dla mniejszych elementów playlisty */
-#import-media-submenu .playlist-item .media-active-highlight-ring::before {
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  border-width: 2px;
-}
-
-@keyframes spinHighlightRing {
-  0% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-/* Klasa dodawana do elementu aktualnie odtwarzanego */
-.playing-from-here > .media-active-highlight-ring {
-  display: block;
-}
-
-/* Ulepszony styl dla okna przycinania wideo w ustawieniach */
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
-}
-
-input[type="range"] {
-  width: 100%;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  height: 6px;
-  outline: none;
-  -webkit-appearance: none;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background-color: var(--primary-color);
-  cursor: pointer;
-  border: none;
-}
-
-input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background-color: var(--primary-color);
-  cursor: pointer;
-  border: none;
-}
-
-/* Tooltip na oknem ustawień o wspólnych ustawieniach */
-.settings-tooltip {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  padding: 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-bottom: 15px;
-  color: var(--primary-color);
-  text-align: center;
-  border: 1px dashed rgba(var(--primary-color-rgb), 0.5);
-}
-
-/* Styl dla niestandardowych tooltipów */
-.custom-tooltip {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 4px;
-  z-index: 9999;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  font-size: 14px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.custom-tooltip.info {
-  border-left: 3px solid var(--info-color);
-}
-
-.custom-tooltip.success {
-  border-left: 3px solid var(--success-color);
-}
-
-.custom-tooltip.warning {
-  border-left: 3px solid var(--warning-color);
-}
-
-.custom-tooltip.error {
-  border-left: 3px solid var(--error-color);
-}
-
-/* Ulepszone style dla okna przycinania */
-.trim-description {
-  font-size: 12px;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Style dla zaznaczania wielu elementów */
-.media-thumbnail.dragging {
-  opacity: 0.6;
-  box-shadow: 0 0 15px rgba(var(--primary-color-rgb), 0.8);
-}
-
-/* Dodatkowe style CSS dla modułu mediów */
-
-/* =============== STYLE DLA ZAZNACZANIA WIELU ELEMENTÓW ============== */
-
-/* Styl dla zaznaczonych elementów w bibliotece mediów */
-#import-media-submenu .media-thumbnail.selected {
-  border: 2px solid var(--primary-color);
-  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.6);
-  position: relative;
-  z-index: 2;
-}
-
-/* Styl dla ramki zaznaczania (selection box) */
-.selection-box {
-  position: absolute;
-  border: 1px solid var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* =============== STYLE DLA ANIMACJI AKTYWNEGO KLIPU =============== */
-
-/* Style dla animowanego pierścienia podświetlenia aktywnego elementu */
-.media-active-highlight-ring {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  pointer-events: none;
-  display: none;
-  box-sizing: border-box;
-  z-index: 1;
-}
-
-.media-active-highlight-ring::before {
-  content: '';
-  position: absolute;
-  box-sizing: border-box;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
-  border-radius: var(--btn-border-radius);
-  border: 3px solid transparent;
-  border-top-color: var(--primary-color);
-  border-right-color: var(--primary-color);
-  animation: spinHighlightRing 1.5s linear infinite;
-}
-
-/* Dostosowanie dla mniejszych elementów playlisty */
-#import-media-submenu .playlist-item .media-active-highlight-ring::before {
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  border-width: 2px;
-}
-
-@keyframes spinHighlightRing {
-  0% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-/* Klasa dodawana do elementu aktualnie odtwarzanego */
-.playing-from-here > .media-active-highlight-ring {
-  display: block;
-}
-
-/* =============== STYLE DLA PRZYCISKÓW NAWIGACYJNYCH =============== */
-
-/* Style dla przycisków szybkiej nawigacji */
-#quick-nav-section {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-#quick-nav-section .quick-nav-button {
-  flex: 1;
-  font-size: 0.8rem;
-  padding: 8px 12px;
-  border-radius: var(--btn-border-radius);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-color);
-  text-transform: uppercase;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  text-align: center;
-  cursor: pointer;
-}
-
-#quick-nav-section .quick-nav-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(var(--primary-color-rgb), 0.5);
-}
-
-/* Styl dla informacji o zaznaczaniu */
-.selection-info {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-/* =============== STYLE DLA ULEPSZONYCH USTAWIEŃ MEDIÓW =============== */
-
-/* Ulepszony styl dla okna przycinania wideo w ustawieniach */
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
-}
-
-input[type="range"] {
-  width: 100%;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  height: 6px;
-  outline: none;
-  -webkit-appearance: none;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background-color: var(--primary-color);
-  cursor: pointer;
-  border: none;
-}
-
-input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background-color: var(--primary-color);
-  cursor: pointer;
-  border: none;
-}
-
-/* Tooltip na oknem ustawień o wspólnych ustawieniach */
-.settings-tooltip {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  padding: 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-bottom: 15px;
-  color: var(--primary-color);
-  text-align: center;
-  border: 1px dashed rgba(var(--primary-color-rgb), 0.5);
-}
-
-/* =============== STYLE DLA POWIADOMIEŃ =============== */
-
-/* Styl dla niestandardowych powiadomień */
-.custom-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
+/* Container for the inline slider */
+.intensity-slider-container {
+  background-color: rgba(255, 255, 255, 0.05); /* Match expanded item */
   padding: 10px 15px;
-  border-radius: 4px;
-  z-index: 9999;
-  max-width: 300px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.custom-notification.info {
-  border-left: 4px solid var(--info-color, #2196f3);
-}
-
-.custom-notification.success {
-  border-left: 4px solid var(--success-color, #4caf50);
-}
-
-.custom-notification.warning {
-  border-left: 4px solid var(--warning-color, #ff9800);
-}
-
-.custom-notification.error {
-  border-left: 4px solid var(--error-color, #f44336);
-}
-
-/* =============== POZOSTAŁE STYLE =============== */
-
-/* Ulepszone style dla okna przycinania */
-.trim-description {
-  font-size: 12px;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Style dla zaznaczania wielu elementów */
-.media-thumbnail.dragging {
-  opacity: 0.6;
-  box-shadow: 0 0 15px rgba(var(--primary-color-rgb), 0.8);
-}
-
-/* Style dla drag & drop elementów playlisty */
-.playlist-item.drag-over-top {
-  border-top: 2px solid var(--primary-color);
-  padding-top: 4px; /* Kompensacja pogrubionej granicy */
-}
-
-.playlist-item.drag-over-bottom {
-  border-bottom: 2px solid var(--primary-color);
-  padding-bottom: 4px; /* Kompensacja pogrubionej granicy */
-}
-
-.playlist-item.dragging {
-  opacity: 0.6;
-  box-shadow: 0 0 10px rgba(var(--primary-color-rgb), 0.5);
-}
-
-/* =============== MEDIA SPECIFICS =============== */
-
-/* Poprawka dla responsywności w mniejszych oknach */
-@media (max-width: 400px) {
-  #import-media-submenu #media-gallery {
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  }
-
-  .submenu-item, .category-item, .menu-item {
-    padding: 0.75rem;
-    font-size: 1rem;
-  }
-
-  .media-settings-dialog {
-    width: 95%;
-  }
-}
-
-/* ========== 15. ENHANCED MENU SYSTEM FOR EFFECTS & TRANSITIONS (NOWA SEKCJA) ========== */
-
-/* Style dla submenu poziom 2 i 3 */
-.submenu-wrapper-l2,
-.submenu-wrapper-l3 {
-  position: fixed;
-  top: 0;
-  height: 100vh;
+  margin-bottom: 0.5rem; /* Keep original margin-bottom spacing */
+  border-bottom-left-radius: var(--btn-border-radius); /* Round bottom corners */
+  border-bottom-right-radius: var(--btn-border-radius);
   overflow: hidden;
-  z-index: 102;
-  transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
-  pointer-events: none;
-  display: none;
-}
-
-.submenu-wrapper-l2 {
-  left: calc(var(--menu-width) + var(--submenu-width) - 300px);
-}
-
-.submenu-wrapper-l3 {
-  left: calc(var(--menu-width) + var(--submenu-width) - 600px);
-  z-index: 103;
-}
-
-.submenu-wrapper-l2.active,
-.submenu-wrapper-l3.active {
-  width: var(--submenu-width);
-  pointer-events: all;
-}
-
-.slide-submenu-l2,
-.slide-submenu-l3 {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: var(--submenu-width);
-  background-color: var(--menu-background);
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 0; /* Initially hidden */
   opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
-  visibility 0s linear var(--menu-animation-time);
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
+  transition: max-height var(--slider-transition-time) ease-out,
+  opacity var(--slider-transition-time) ease-out,
+  padding var(--slider-transition-time) ease-out;
+  display: flex; /* Use flex for slider and value */
+  align-items: center;
+  gap: 10px;
 }
-
-.slide-submenu-l2.active,
-.slide-submenu-l3.active {
+.intensity-slider-container.visible {
+  max-height: 50px; /* Adjust as needed */
   opacity: 1;
-  visibility: visible;
-  pointer-events: all;
-  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
-  visibility 0s linear 0s;
+  padding: 10px 15px; /* Restore padding */
 }
 
-.submenu-item-l2,
-.submenu-item-l3 {
-  display: block;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
-  text-transform: uppercase;
-  font-weight: bold;
-  letter-spacing: 0.05em;
-  background-color: transparent;
-  border: none;
-  border-radius: var(--btn-border-radius);
-  transition: background-color 0.2s, color 0.2s;
+/* The slider itself */
+input[type="range"].intensity-slider {
+  flex-grow: 1; /* Take available space */
+  height: 6px;
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  color: var(--text-color);
-  user-select: none;
-  text-align: left;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="range"].intensity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].intensity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
 }
 
-.submenu-item-l2:hover,
-.submenu-item-l3:hover {
-  background-color: var(--menu-hover);
+/* Value display next to slider */
+.intensity-slider-container .intensity-value {
+  font-size: 0.8rem;
   color: var(--primary-color);
+  min-width: 35px; /* Ensure space for "100%" */
+  text-align: right;
 }
 
-/* Wskaźniki efektów i przejść na miniaturkach */
-.effect-indicator,
-.transition-indicator {
-  position: absolute;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: var(--primary-color);
-  font-size: 10px;
-  padding: 2px 4px;
-  border-radius: 2px;
-  z-index: 5;
-}
+.effect-indicator, .transition-indicator { position: absolute; background-color: rgba(0, 0, 0, 0.7); color: var(--primary-color); font-size: 10px; padding: 2px 4px; border-radius: 2px; z-index: 5; }
+.effect-indicator { top: 4px; left: 4px; }
+.transition-indicator { top: 4px; left: 24px; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.7); } 70% { box-shadow: 0 0 0 10px rgba(var(--primary-color-rgb), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); } }
+.pulse-highlight { animation: pulse 1s ease-in-out 2; background-color: rgba(var(--primary-color-rgb), 0.2) !important; color: var(--primary-color) !important; }
 
-.effect-indicator {
-  top: 4px;
-  left: 4px;
-}
-
-.transition-indicator {
-  top: 4px;
-  left: 24px; /* Obok effect-indicator */
-}
-
-/* Animacja pulsowania do podświetlenia przycisku */
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(var(--primary-color-rgb), 0); }
-  100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); }
-}
-
-.pulse-highlight {
-  animation: pulse 1s ease-in-out 3;
-  background-color: rgba(var(--primary-color-rgb), 0.2) !important;
-  color: var(--primary-color) !important;
-}
-
-/* Dodatkowe style dla przycisków MANAGE EFFECTS/TRANSITIONS */
-.open-effects-l2,
-.open-transitions-l2 {
-  position: relative;
-  overflow: hidden;
-}
-
-/* Style dla przycisków zamykania submenu poziom 2 i 3 */
-.submenu-close-l2,
-.submenu-close-l3 {
-  font-size: 1.8rem;
-}
