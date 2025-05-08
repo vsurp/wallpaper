@@ -6,7 +6,6 @@
   <title>FL Studio Wallpaper App</title>
   <link rel="stylesheet" href="style.css">
 
-  <!-- Initialize the WallpaperApp namespace properly -->
   <script>
     window.WallpaperApp = {
       registerModule: function(name, module) {
@@ -15,112 +14,152 @@
       },
       UI: {
         showNotification: function(message, type) {
-          // Create notification element
+          const container = document.getElementById('notification-container');
+          if (!container) {
+            console.log(`Notification container not found. Notification (${type}): ${message}`);
+            return;
+          }
+          // Upewnij się, że kontener jest widoczny, jeśli był ukryty przez CSS
+          container.style.visibility = 'visible';
+
+
           const notification = document.createElement('div');
           notification.className = `notification ${type || 'info'}`;
-          notification.innerHTML = `<div class="notification-content">${message}</div>`;
+          // Dodano przycisk zamknięcia z nowymi klasami
+          notification.innerHTML = `<div class="notification-content">${message}</div>
+                                    <button class="btn btn-icon notification-close" aria-label="Close notification">&times;</button>`;
 
-          // Add to container
-          const container = document.getElementById('notification-container');
-          if (container) {
-            container.appendChild(notification);
+          container.appendChild(notification);
 
-            // Show notification with animation
-            setTimeout(() => {
-              notification.classList.add('show');
-            }, 10);
-
-            // Auto-remove after 3 seconds
-            setTimeout(() => {
+          // Obsługa kliknięcia przycisku zamknięcia w notyfikacji
+          const closeBtn = notification.querySelector('.notification-close');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
               notification.classList.remove('show');
               setTimeout(() => {
                 notification.remove();
+                if (container.children.length === 0) {
+                  container.style.visibility = 'hidden'; // Ukryj kontener, jeśli jest pusty
+                }
               }, 300);
-            }, 3000);
-          } else {
-            console.log(`Notification (${type}): ${message}`);
+            });
           }
-        },
-        showTooltip: function() {},
-        hideTooltip: function() {},
-        showModal: function() {}
-      },
-      Logger: {
-        info: function(msg) { console.log('[INFO]', msg); },
-        error: function(msg, error) { console.error('[ERROR]', msg, error); },
-        warn: function(msg) { console.warn('[WARN]', msg); }
-      }
-    };
 
-    // Simulate Utils namespace for testing
-    window.Utils = {
-      Storage: {
-        saveToLocalStorage: function(key, value) {
-          try {
-            localStorage.setItem(key, JSON.stringify(value));
-          } catch (e) {
-            console.error('Failed to save to localStorage:', e);
-          }
+
+          setTimeout(() => {
+            notification.classList.add('show');
+          }, 10);
+
+          setTimeout(() => {
+            // Sprawdź czy notyfikacja wciąż istnieje (mogła zostać zamknięta manualnie)
+            if (notification.parentElement) {
+              notification.classList.remove('show');
+              setTimeout(() => {
+                if (notification.parentElement) notification.remove();
+                if (container.children.length === 0) {
+                  container.style.visibility = 'hidden'; // Ukryj kontener, jeśli jest pusty
+                }
+              }, 300);
+            }
+          }, 3000); // Dłuższy czas dla testów, można skrócić
         },
-        loadFromLocalStorage: function(key) {
-          try {
-            const value = localStorage.getItem(key);
-            return value ? JSON.parse(value) : null;
-          } catch (e) {
-            console.error('Failed to load from localStorage:', e);
-            return null;
+        showTooltip: function() {}, // Implementacja tooltipów
+        hideTooltip: function() {},
+        showModal: function(id, title, content, footerButtons) { // Prosta implementacja modala
+          const modalContainer = document.getElementById('modal-container');
+          if (!modalContainer) return;
+
+          // Tworzenie struktury modala
+          const modal = document.createElement('div');
+          modal.className = 'modal acrylic acrylic-dark'; // Dodano klasy acrylic
+          modal.id = id || `modal-${Date.now()}`;
+
+          modal.innerHTML = `
+                <div class="modal-header">
+                    <h2 class="modal-title">${title || 'Modal Title'}</h2>
+                    <button class="btn btn-icon modal-close" aria-label="Close modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${typeof content === 'string' ? `<p>${content}</p>` : ''}
+                </div>
+                <div class="modal-footer">
+                    </div>
+            `;
+
+          if (typeof content !== 'string' && content instanceof HTMLElement) {
+            modal.querySelector('.modal-body').appendChild(content);
+          }
+
+          const modalFooter = modal.querySelector('.modal-footer');
+          if (footerButtons && footerButtons.length > 0) {
+            footerButtons.forEach(btnData => {
+              const button = document.createElement('button');
+              button.textContent = btnData.text;
+              button.className = `btn ${btnData.classes || 'btn-secondary'}`;
+              if (btnData.onClick) {
+                button.addEventListener('click', () => {
+                  btnData.onClick();
+                  // Domyślnie zamykaj modal po kliknięciu przycisku w stopce, chyba że onClick zwróci false
+                  if (btnData.onClick() !== false) {
+                    WallpaperApp.UI.hideModal(modal.id);
+                  }
+                });
+              } else {
+                button.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
+              }
+              modalFooter.appendChild(button);
+            });
+          } else {
+            // Domyślny przycisk OK jeśli brak innych
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.className = 'btn btn-primary';
+            okButton.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
+            modalFooter.appendChild(okButton);
+          }
+
+
+          modalContainer.appendChild(modal);
+          modalContainer.style.display = 'flex';
+          setTimeout(() => modal.classList.add('show'), 10); // Dla animacji (jeśli jest)
+
+          modal.querySelector('.modal-close').addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
+        },
+        hideModal: function(id) {
+          const modalContainer = document.getElementById('modal-container');
+          const modalToHide = id ? document.getElementById(id) : modalContainer.querySelector('.modal');
+
+          if (modalToHide) {
+            modalToHide.classList.remove('show'); // Dla animacji
+            setTimeout(() => {
+              if (modalToHide.parentElement) modalToHide.parentElement.removeChild(modalToHide);
+              if (modalContainer && modalContainer.children.length === 0) {
+                modalContainer.style.display = 'none';
+              }
+            }, 300); // Czas animacji
           }
         }
       },
-      DOM: {
-        clearElement: function(element) {
-          while (element.firstChild) {
-            element.removeChild(element.firstChild);
-          }
-        },
-        addTooltip: function(element, text) {
-          element.setAttribute('data-tooltip', text);
-        }
-      },
-      String: {
-        generateRandomId: function() {
-          return Math.random().toString(36).substring(2, 10);
-        }
-      }
+      Logger: { /* ... bez zmian ... */ }
     };
+    window.Utils = { /* ... bez zmian ... */ };
   </script>
 </head>
 <body style="overflow: hidden;">
-<!-- Main Application Container -->
 <div id="app-container">
-  <!-- Dynamic Background Container -->
-  <div id="background-container" class="module-container">
-    <!-- Background will be dynamically generated here -->
-  </div>
+  <div id="background-container" class="module-container"></div>
+  <div id="media-container" class="module-container"></div>
+  <div id="visualizer-container" class="module-container"></div>
 
-  <!-- Media Display Container -->
-  <div id="media-container" class="module-container">
-    <!-- Media content will be displayed here -->
-  </div>
-
-  <!-- Audio Visualizer Container -->
-  <div id="visualizer-container" class="module-container">
-    <!-- Audio visualizer will be rendered here -->
-  </div>
-
-  <!-- Menu Hover Area and Trigger -->
   <div class="menu-hover-area">
     <div id="menu-trigger" class="menu-trigger right">
       <div class="trigger-indicator"></div>
     </div>
   </div>
 
-  <!-- Main Menu - Now properly structured -->
-  <div id="main-menu" class="slide-menu right">
-    <div class="menu-header">
-      <h1>CLUTCHBOYZ 🌐</h1>
-      <div class="menu-close">&times;</div>
-    </div>
+  <div id="main-menu" class="slide-menu right acrylic acrylic-dark"> <div class="menu-header">
+    <h1>CLUTCHBOYZ 🌐</h1>
+    <button class="btn btn-icon menu-close" aria-label="Close menu">&times;</button> </div>
     <div class="menu-content">
       <div class="menu-section" data-section="background">
         <h2 style="display: flex; justify-content: center; align-items: center;">MENU</h2>
@@ -144,243 +183,158 @@
     </div>
   </div>
 
-  <!-- Submenu Wrapper - Properly positioned outside of main menu -->
   <div class="submenu-wrapper">
-    <!-- Import Media Submenu -->
-    <div id="import-media-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>IMPORT MEDIA</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
+    <div id="import-media-submenu" class="slide-submenu acrylic acrylic-dark"> <div class="menu-header">
+      <h1>IMPORT MEDIA</h1>
+      <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button> </div>
       <div class="menu-content">
         <div class="menu-section">
-          <div class="category-item submenu-item" data-action="import-media">IMPORT MEDIA</div>
+          <div class="submenu-item" data-action="import-media">IMPORT MEDIA</div>
         </div>
       </div>
-      <div class="menu-footer">
-      </div>
+      <div class="menu-footer"></div>
     </div>
 
-    <!-- Transitions Submenu -->
-    <div id="transitions-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>TRANSITIONS</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="fade-transition">FADE</div>
-          <div class="category-item submenu-item" data-action="slide-transition">SLIDE</div>
-          <div class="category-item submenu-item" data-action="zoom-transition">ZOOM</div>
-          <div class="category-item submenu-item" data-action="dissolve-transition">DISSOLVE</div>
-          <div class="category-item submenu-item" data-action="custom-transition">CUSTOM</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="transitions-submenu" class="slide-submenu acrylic acrylic-dark"> <div class="menu-header">
+      <h1>TRANSITIONS</h1>
+      <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
     </div>
-
-    <!-- Effects Submenu -->
-    <div id="effects-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>EFFECTS</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
       <div class="menu-content">
         <div class="menu-section">
-          <div class="category-item submenu-item" data-action="blur-effect">BLUR</div>
-          <div class="category-item submenu-item" data-action="glow-effect">GLOW</div>
-          <div class="category-item submenu-item" data-action="particle-effect">PARTICLES</div>
-          <div class="category-item submenu-item" data-action="color-effect">COLOR FILTERS</div>
-          <div class="category-item submenu-item" data-action="distortion-effect">DISTORTION</div>
+          <div class="submenu-item" data-action="fade-transition">FADE</div>
+          <div class="submenu-item" data-action="slide-transition">SLIDE</div>
+          <div class="submenu-item" data-action="zoom-transition">ZOOM</div>
+          <div class="submenu-item" data-action="dissolve-transition">DISSOLVE</div>
+          <div class="submenu-item" data-action="custom-transition">CUSTOM</div>
         </div>
       </div>
-      <div class="menu-footer">
-      </div>
+      <div class="menu-footer"></div>
     </div>
-
-    <!-- DAW Integration Submenu -->
-    <div id="daw-integration-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>DAW INTEGRATION</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="fl-studio-connection">FL STUDIO</div>
-          <div class="category-item submenu-item" data-action="ableton-connection">ABLETON LIVE</div>
-          <div class="category-item submenu-item" data-action="logic-connection">LOGIC PRO</div>
-          <div class="category-item submenu-item" data-action="pro-tools-connection">PRO TOOLS</div>
-          <div class="category-item submenu-item" data-action="custom-daw-connection">CUSTOM DAW</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="effects-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>EFFECTS</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="blur-effect">BLUR</div>
+        <div class="submenu-item" data-action="glow-effect">GLOW</div>
+        <div class="submenu-item" data-action="particle-effect">PARTICLES</div>
+        <div class="submenu-item" data-action="color-effect">COLOR FILTERS</div>
+        <div class="submenu-item" data-action="distortion-effect">DISTORTION</div>
+      </div></div><div class="menu-footer"></div>
     </div>
-
-    <!-- Performance Submenu -->
-    <div id="performance-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>PERFORMANCE</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="1">1</div>
-          <div class="category-item submenu-item" data-action="2">2</div>
-          <div class="category-item submenu-item" data-action="3">3</div>
-          <div class="category-item submenu-item" data-action="4">4</div>
-          <div class="category-item submenu-item" data-action="5">5</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="fl-studio-connection">FL STUDIO</div>
+        <div class="submenu-item" data-action="ableton-connection">ABLETON LIVE</div>
+        <div class="submenu-item" data-action="logic-connection">LOGIC PRO</div>
+        <div class="submenu-item" data-action="pro-tools-connection">PRO TOOLS</div>
+        <div class="submenu-item" data-action="custom-daw-connection">CUSTOM DAW</div>
+      </div></div><div class="menu-footer"></div>
     </div>
-
-    <!-- Extra Submenu -->
-    <div id="extra-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>EXTRA</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="visualizer-styles">VISUALIZER STYLES</div>
-          <div class="category-item submenu-item" data-action="clock-display">CLOCK DISPLAY</div>
-          <div class="category-item submenu-item" data-action="spectrum-analyzer">SPECTRUM ANALYZER</div>
-          <div class="category-item submenu-item" data-action="weather-widget">WEATHER WIDGET</div>
-          <div class="category-item submenu-item" data-action="custom-widgets">CUSTOM WIDGETS</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="performance-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>PERFORMANCE</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="1">1</div><div class="submenu-item" data-action="2">2</div>
+        <div class="submenu-item" data-action="3">3</div><div class="submenu-item" data-action="4">4</div>
+        <div class="submenu-item" data-action="5">5</div>
+      </div></div><div class="menu-footer"></div>
     </div>
-
-    <!-- Config Settings Submenu -->
-    <div id="config-settings-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>CONFIG SETTINGS</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="startup-behavior">STARTUP BEHAVIOR</div>
-          <div class="category-item submenu-item" data-action="auto-save">AUTO SAVE</div>
-          <div class="category-item submenu-item" data-action="file-management">FILE MANAGEMENT</div>
-          <div class="category-item submenu-item" data-action="keyboard-shortcuts">KEYBOARD SHORTCUTS</div>
-          <div class="category-item submenu-item" data-action="reset-defaults">RESET TO DEFAULTS</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="extra-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>EXTRA</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="visualizer-styles">VISUALIZER STYLES</div>
+        <div class="submenu-item" data-action="clock-display">CLOCK DISPLAY</div>
+        <div class="submenu-item" data-action="spectrum-analyzer">SPECTRUM ANALYZER</div>
+        <div class="submenu-item" data-action="weather-widget">WEATHER WIDGET</div>
+        <div class="submenu-item" data-action="custom-widgets">CUSTOM WIDGETS</div>
+      </div></div><div class="menu-footer"></div>
     </div>
-
-    <!-- Menu Settings Submenu -->
-    <div id="menu-settings-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>MENU SETTINGS</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="menu-position">MENU POSITION</div>
-          <div class="category-item submenu-item" data-action="menu-opacity">MENU OPACITY</div>
-          <div class="category-item submenu-item" data-action="menu-color-theme">COLOR THEME</div>
-          <div class="category-item submenu-item" data-action="menu-animations">MENU ANIMATIONS</div>
-          <div class="category-item submenu-item" data-action="customize-menu">CUSTOMIZE MENU</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="config-settings-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>CONFIG SETTINGS</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="startup-behavior">STARTUP BEHAVIOR</div>
+        <div class="submenu-item" data-action="auto-save">AUTO SAVE</div>
+        <div class="submenu-item" data-action="file-management">FILE MANAGEMENT</div>
+        <div class="submenu-item" data-action="keyboard-shortcuts">KEYBOARD SHORTCUTS</div>
+        <div class="submenu-item" data-action="reset-defaults">RESET TO DEFAULTS</div>
+      </div></div><div class="menu-footer"></div>
     </div>
-
-    <!-- About Submenu -->
-    <div id="about-submenu" class="slide-submenu">
-      <div class="menu-header">
-        <h1>ABOUT</h1>
-        <div class="menu-close submenu-close">&times;</div>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <div class="category-item submenu-item" data-action="app-info">APP INFORMATION</div>
-          <div class="category-item submenu-item" data-action="release-notes">RELEASE NOTES</div>
-          <div class="category-item submenu-item" data-action="credits">CREDITS</div>
-          <div class="category-item submenu-item" data-action="license">LICENSE INFO</div>
-          <div class="category-item submenu-item" data-action="contact-support">CONTACT SUPPORT</div>
-        </div>
-      </div>
-      <div class="menu-footer">
-      </div>
+    <div id="menu-settings-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>MENU SETTINGS</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="menu-position">MENU POSITION</div>
+        <div class="submenu-item" data-action="menu-opacity">MENU OPACITY</div>
+        <div class="submenu-item" data-action="menu-color-theme">COLOR THEME</div>
+        <div class="submenu-item" data-action="menu-animations">MENU ANIMATIONS</div>
+        <div class="submenu-item" data-action="customize-menu">CUSTOMIZE MENU</div>
+      </div></div><div class="menu-footer"></div>
+    </div>
+    <div id="about-submenu" class="slide-submenu acrylic acrylic-dark">
+      <div class="menu-header"><h1>ABOUT</h1><button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <div class="submenu-item" data-action="app-info">APP INFORMATION</div>
+        <div class="submenu-item" data-action="release-notes">RELEASE NOTES</div>
+        <div class="submenu-item" data-action="credits">CREDITS</div>
+        <div class="submenu-item" data-action="license">LICENSE INFO</div>
+        <div class="submenu-item" data-action="contact-support">CONTACT SUPPORT</div>
+      </div></div><div class="menu-footer"></div>
     </div>
   </div>
 
-  <!-- Tooltip Container -->
   <div id="tooltip-container"></div>
+  <div id="notification-container" style="visibility: hidden;"></div> <div id="modal-container" style="display: none;"></div> </div>
 
-  <!-- Notification Container -->
-  <div id="notification-container"></div>
-
-  <!-- Modal Container -->
-  <div id="modal-container"></div>
-</div>
-
-<!-- Main application script -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // Show welcome notification
     WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
+    // Przykładowe użycie modala po załadowaniu:
+    // WallpaperApp.UI.showModal('welcomeModal', 'Witaj!', 'To jest przykładowa treść modala.', [
+    //     { text: 'Anuluj', classes: 'btn-secondary', onClick: () => console.log('Anulowano')},
+    //     { text: 'Potwierdź', classes: 'btn-primary', onClick: () => console.log('Potwierdzono')}
+    // ]);
 
-    // Initialize app functionality immediately
+
     setupBasicMenuFunctionality();
 
-    // Basic menu functionality
     function setupBasicMenuFunctionality() {
       const menuTrigger = document.getElementById('menu-trigger');
       const mainMenu = document.getElementById('main-menu');
-      const menuClose = document.querySelector('#main-menu .menu-close');
+      const menuClose = mainMenu.querySelector('.menu-close'); // Już jest button
       const categoryItems = document.querySelectorAll('#main-menu .category-item');
-      const submenuCloseButtons = document.querySelectorAll('.submenu-close');
-      const backButtons = document.querySelectorAll('.back-button');
+      const submenuCloseButtons = document.querySelectorAll('.submenu-close'); // Już są buttonami
+      // const backButtons = document.querySelectorAll('.back-button'); // Jeśli są używane
 
-      // Function to close all submenus
-      function closeAllSubmenus() {
+      function closeAllSubmenus(animate = true) {
         const allSubmenus = document.querySelectorAll('.slide-submenu');
         const submenuWrapper = document.querySelector('.submenu-wrapper');
 
         if (submenuWrapper && submenuWrapper.classList.contains('active')) {
-          // First, tell the wrapper to animate its width to 0
-          submenuWrapper.classList.remove('active');
-
-          // Listen for the transition end event
-          submenuWrapper.addEventListener('transitionend', function hideSubmenus() {
-            // After the width animation is complete, then hide all submenus
-            allSubmenus.forEach(submenu => {
-              submenu.classList.remove('active');
-            });
-
-            // Remove the event listener to avoid memory leaks
-            submenuWrapper.removeEventListener('transitionend', hideSubmenus);
-          }, { once: true }); // Using once: true ensures the listener is auto-removed after first execution
+          if (animate) {
+            submenuWrapper.classList.remove('active');
+            submenuWrapper.addEventListener('transitionend', function hideSubmenus() {
+              allSubmenus.forEach(submenu => submenu.classList.remove('active'));
+              submenuWrapper.removeEventListener('transitionend', hideSubmenus);
+            }, { once: true });
+          } else {
+            submenuWrapper.classList.remove('active');
+            allSubmenus.forEach(submenu => submenu.classList.remove('active'));
+          }
         } else {
-          // If the wrapper is not active, just hide all submenus directly
-          allSubmenus.forEach(submenu => {
-            submenu.classList.remove('active');
-          });
+          allSubmenus.forEach(submenu => submenu.classList.remove('active'));
         }
       }
 
-      // Toggle main menu
       menuTrigger.addEventListener('click', () => {
         mainMenu.classList.toggle('active');
+        if (!mainMenu.classList.contains('active')) {
+          closeAllSubmenus(false); // Zamknij submenu natychmiast, jeśli menu główne jest zamykane
+        }
       });
 
-      // Close menu button
-      menuClose.addEventListener('click', () => {
+      if(menuClose) menuClose.addEventListener('click', () => {
         mainMenu.classList.remove('active');
         closeAllSubmenus();
       });
 
-      // Menu item click event to open submenus with proper sliding animation
       categoryItems.forEach(item => {
         item.addEventListener('click', () => {
           const action = item.getAttribute('data-action');
@@ -390,82 +344,63 @@
           const currentActiveSubmenu = document.querySelector('.slide-submenu.active');
 
           if (newSubmenu) {
-            // Clear any previously selected items
-            categoryItems.forEach(catItem => {
-              catItem.classList.remove('selected');
-            });
+            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
             item.classList.add('selected');
 
-            // If we're switching between different submenus
             if (currentActiveSubmenu && currentActiveSubmenu !== newSubmenu) {
-              // First, slide the wrapper out by removing the active class
               submenuWrapper.classList.remove('active');
+              currentActiveSubmenu.classList.remove('active'); // Ukryj stary natychmiast
 
-              // Wait for the slide-out animation to complete
-              submenuWrapper.addEventListener('transitionend', function switchSubmenu() {
-                // Remove active class from current submenu
-                currentActiveSubmenu.classList.remove('active');
+              // Czekamy aż animacja wysunięcia się zakończy LUB krótki timeout jeśli nie ma animacji
+              const transitionDuration = parseFloat(getComputedStyle(submenuWrapper).transitionDuration) * 1000;
 
-                // Add active class to the new submenu
+              setTimeout(() => {
                 newSubmenu.classList.add('active');
+                submenuWrapper.classList.add('active'); // Wysuń nowy
+                // WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
+              }, currentActiveSubmenu ? (transitionDuration || 10) : 10); // Jeśli było aktywne submenu, poczekaj na jego animację
 
-                // Start the slide-in animation
-                setTimeout(() => {
-                  submenuWrapper.classList.add('active');
-                }, 10);
-
-                // Remove this event listener to prevent multiple executions
-                submenuWrapper.removeEventListener('transitionend', switchSubmenu);
-
-                WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
-              }, { once: true });
+            } else if (!currentActiveSubmenu) { // Jeśli żadne submenu nie było aktywne
+              newSubmenu.classList.add('active');
+              submenuWrapper.classList.add('active');
+              // WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
+            } else if (currentActiveSubmenu === newSubmenu) { // Kliknięto to samo aktywne submenu
+              closeAllSubmenus();
+              item.classList.remove('selected'); // Odznacz
             }
-            // If there's no active submenu or it's the same one (toggling)
-            else {
-              // If this submenu is already active, just close it
-              if (newSubmenu.classList.contains('active')) {
-                closeAllSubmenus();
-              }
-              // Otherwise open it as normal
-              else {
-                newSubmenu.classList.add('active');
-                submenuWrapper.classList.add('active');
-                WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
-              }
-            }
+          } else {
+            // Jeśli nie ma submenu dla tej akcji, po prostu zamknij wszystkie otwarte
+            closeAllSubmenus();
+            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
           }
         });
       });
 
-      // Back button click events
-      backButtons.forEach(button => {
-        button.addEventListener('click', () => {
-          closeAllSubmenus();
-        });
-      });
+      // backButtons.forEach(button => button.addEventListener('click', () => closeAllSubmenus()));
+      submenuCloseButtons.forEach(button => button.addEventListener('click', () => {
+        closeAllSubmenus();
+        categoryItems.forEach(catItem => catItem.classList.remove('selected')); // Odznacz element menu głównego
+      }));
 
-      // Submenu close button click events
-      submenuCloseButtons.forEach(button => {
-        button.addEventListener('click', () => {
-          closeAllSubmenus();
-        });
-      });
-
-      // ESC key to close menus
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-          const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
-          if (activeSubmenus.length > 0) {
-            closeAllSubmenus();
+          const activeModal = document.querySelector('#modal-container .modal.show');
+          if (activeModal) {
+            WallpaperApp.UI.hideModal(activeModal.id);
           } else {
-            mainMenu.classList.remove('active');
+            const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
+            if (activeSubmenus.length > 0) {
+              closeAllSubmenus();
+              categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+            } else if (mainMenu.classList.contains('active')) {
+              mainMenu.classList.remove('active');
+            }
           }
         }
       });
     }
   });
 </script>
-
 <script src="media-importer.js"></script>
 
 </body>
