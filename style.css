@@ -618,3 +618,521 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
   margin: 5px 0;
   border-color: rgba(255,255,255,0.05);
 }
+
+/* Upewnijmy się, że elementy, które mogą być podświetlone, mają position: relative */
+#import-media-submenu .media-thumbnail,
+#import-media-submenu .playlist-item {
+  position: relative; /* Niezbędne dla absolutnego pozycjonowania pierścienia podświetlenia */
+}
+
+/* Styl dla animowanego pierścienia podświetlenia */
+.media-active-highlight-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit; /* Dziedziczy border-radius od rodzica */
+  pointer-events: none;   /* Aby element nie blokował interakcji z elementem pod spodem */
+  display: none;          /* Domyślnie ukryty */
+  box-sizing: border-box;
+  z-index: 1; /* Aby było nad obrazkiem/tłem, ale pod przyciskami, jeśli są na wierzchu */
+}
+
+.media-active-highlight-ring::before {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centrowanie */
+  width: calc(100% - 6px); /* Dostosuj grubość "marginesu" pierścienia od krawędzi */
+  height: calc(100% - 6px);
+  border-radius: 50%; /* Idealne koło */
+  border: 3px solid transparent; /* Grubość linii koła */
+  border-top-color: var(--primary-color); /* Kolor aktywnej części koła */
+  /* Aby uzyskać efekt "niezamkniętego" koła, można użyć tylko border-top-color
+     lub kombinacji np. border-top-color i border-left-color */
+  /* border-left-color: var(--primary-color); */
+  animation: spinHighlightRing 0.8s linear infinite;
+}
+
+/* Dostosowanie dla mniejszych elementów playlisty */
+#import-media-submenu .playlist-item .media-active-highlight-ring::before {
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-width: 2px; /* Cieńszy pierścień dla playlisty */
+}
+
+@keyframes spinHighlightRing {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Klasa dodawana do elementu (thumbnail lub playlist item) wskazująca, że to stąd gra */
+.playing-from-here > .media-active-highlight-ring {
+  display: block; /* Pokaż podświetlenie */
+}
+
+/* Dodatkowe style dla .current na playliście, aby nie kolidowało z nowym podświetleniem */
+#import-media-submenu .playlist-item.current {
+  background-color: rgba(var(--primary-color-rgb), 0.1); /* Subtelniejsze tło, jeśli jest animacja */
+  /* border-left: 3px solid var(--primary-color); Można zostawić lub usunąć, jeśli animacja wystarcza */
+}
+
+/* Upewnij się, że przyciski na miniaturkach są nad podświetleniem */
+#import-media-submenu .media-settings-btn,
+#import-media-submenu .media-delete-btn {
+  z-index: 2;
+}
+
+/* Dodatkowe style dla implementacji nowych funkcji*/
+
+/* Styl dla zaznaczonych elementów w bibliotece mediów */
+#import-media-submenu .media-thumbnail.selected {
+  border: 2px solid var(--primary-color);
+  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.6);
+}
+
+/* Styl dla ramki zaznaczania (selection box) */
+.selection-box {
+  position: absolute;
+  border: 1px solid var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Style dla przycisków szybkiej nawigacji */
+#quick-nav-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#quick-nav-section .quick-nav-button {
+  flex: 1;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-radius: var(--btn-border-radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-align: center;
+  cursor: pointer;
+}
+
+#quick-nav-section .quick-nav-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(var(--primary-color-rgb), 0.5);
+}
+
+/* Styl dla informacji o zaznaczaniu */
+.selection-info {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* Style dla animowanego pierścienia podświetlenia aktywnego elementu */
+.media-active-highlight-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+  display: none;
+  box-sizing: border-box;
+  z-index: 1;
+}
+
+.media-active-highlight-ring::before {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  border-radius: var(--btn-border-radius);
+  border: 3px solid transparent;
+  border-top-color: var(--primary-color);
+  border-right-color: var(--primary-color);
+  animation: spinHighlightRing 1.5s linear infinite;
+}
+
+/* Dostosowanie dla mniejszych elementów playlisty */
+#import-media-submenu .playlist-item .media-active-highlight-ring::before {
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-width: 2px;
+}
+
+@keyframes spinHighlightRing {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Klasa dodawana do elementu aktualnie odtwarzanego */
+.playing-from-here > .media-active-highlight-ring {
+  display: block;
+}
+
+/* Ulepszony styl dla okna przycinania wideo w ustawieniach */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
+input[type="range"] {
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  height: 6px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  cursor: pointer;
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  cursor: pointer;
+  border: none;
+}
+
+/* Tooltip na oknem ustawień o wspólnych ustawieniach */
+.settings-tooltip {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 15px;
+  color: var(--primary-color);
+  text-align: center;
+  border: 1px dashed rgba(var(--primary-color-rgb), 0.5);
+}
+
+/* Styl dla niestandardowych tooltipów */
+.custom-tooltip {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  z-index: 9999;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.custom-tooltip.info {
+  border-left: 3px solid var(--info-color);
+}
+
+.custom-tooltip.success {
+  border-left: 3px solid var(--success-color);
+}
+
+.custom-tooltip.warning {
+  border-left: 3px solid var(--warning-color);
+}
+
+.custom-tooltip.error {
+  border-left: 3px solid var(--error-color);
+}
+
+/* Ulepszone style dla okna przycinania */
+.trim-description {
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Style dla zaznaczania wielu elementów */
+.media-thumbnail.dragging {
+  opacity: 0.6;
+  box-shadow: 0 0 15px rgba(var(--primary-color-rgb), 0.8);
+}
+
+/* Dodatkowe style CSS dla modułu mediów */
+
+/* =============== STYLE DLA ZAZNACZANIA WIELU ELEMENTÓW ============== */
+
+/* Styl dla zaznaczonych elementów w bibliotece mediów */
+#import-media-submenu .media-thumbnail.selected {
+  border: 2px solid var(--primary-color);
+  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.6);
+  position: relative;
+  z-index: 2;
+}
+
+/* Styl dla ramki zaznaczania (selection box) */
+.selection-box {
+  position: absolute;
+  border: 1px solid var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* =============== STYLE DLA ANIMACJI AKTYWNEGO KLIPU =============== */
+
+/* Style dla animowanego pierścienia podświetlenia aktywnego elementu */
+.media-active-highlight-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+  display: none;
+  box-sizing: border-box;
+  z-index: 1;
+}
+
+.media-active-highlight-ring::before {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  border-radius: var(--btn-border-radius);
+  border: 3px solid transparent;
+  border-top-color: var(--primary-color);
+  border-right-color: var(--primary-color);
+  animation: spinHighlightRing 1.5s linear infinite;
+}
+
+/* Dostosowanie dla mniejszych elementów playlisty */
+#import-media-submenu .playlist-item .media-active-highlight-ring::before {
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-width: 2px;
+}
+
+@keyframes spinHighlightRing {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Klasa dodawana do elementu aktualnie odtwarzanego */
+.playing-from-here > .media-active-highlight-ring {
+  display: block;
+}
+
+/* =============== STYLE DLA PRZYCISKÓW NAWIGACYJNYCH =============== */
+
+/* Style dla przycisków szybkiej nawigacji */
+#quick-nav-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#quick-nav-section .quick-nav-button {
+  flex: 1;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-radius: var(--btn-border-radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-align: center;
+  cursor: pointer;
+}
+
+#quick-nav-section .quick-nav-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(var(--primary-color-rgb), 0.5);
+}
+
+/* Styl dla informacji o zaznaczaniu */
+.selection-info {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* =============== STYLE DLA ULEPSZONYCH USTAWIEŃ MEDIÓW =============== */
+
+/* Ulepszony styl dla okna przycinania wideo w ustawieniach */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
+input[type="range"] {
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  height: 6px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  cursor: pointer;
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  cursor: pointer;
+  border: none;
+}
+
+/* Tooltip na oknem ustawień o wspólnych ustawieniach */
+.settings-tooltip {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 15px;
+  color: var(--primary-color);
+  text-align: center;
+  border: 1px dashed rgba(var(--primary-color-rgb), 0.5);
+}
+
+/* =============== STYLE DLA POWIADOMIEŃ =============== */
+
+/* Styl dla niestandardowych powiadomień */
+.custom-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 4px;
+  z-index: 9999;
+  max-width: 300px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.custom-notification.info {
+  border-left: 4px solid var(--info-color, #2196f3);
+}
+
+.custom-notification.success {
+  border-left: 4px solid var(--success-color, #4caf50);
+}
+
+.custom-notification.warning {
+  border-left: 4px solid var(--warning-color, #ff9800);
+}
+
+.custom-notification.error {
+  border-left: 4px solid var(--error-color, #f44336);
+}
+
+/* =============== POZOSTAŁE STYLE =============== */
+
+/* Ulepszone style dla okna przycinania */
+.trim-description {
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Style dla zaznaczania wielu elementów */
+.media-thumbnail.dragging {
+  opacity: 0.6;
+  box-shadow: 0 0 15px rgba(var(--primary-color-rgb), 0.8);
+}
+
+/* Style dla drag & drop elementów playlisty */
+.playlist-item.drag-over-top {
+  border-top: 2px solid var(--primary-color);
+  padding-top: 4px; /* Kompensacja pogrubionej granicy */
+}
+
+.playlist-item.drag-over-bottom {
+  border-bottom: 2px solid var(--primary-color);
+  padding-bottom: 4px; /* Kompensacja pogrubionej granicy */
+}
+
+.playlist-item.dragging {
+  opacity: 0.6;
+  box-shadow: 0 0 10px rgba(var(--primary-color-rgb), 0.5);
+}
+
+/* =============== MEDIA SPECIFICS =============== */
+
+/* Poprawka dla responsywności w mniejszych oknach */
+@media (max-width: 400px) {
+  #import-media-submenu #media-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  }
+
+  .submenu-item, .category-item, .menu-item {
+    padding: 0.75rem;
+    font-size: 1rem;
+  }
+
+  .media-settings-dialog {
+    width: 95%;
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Wersja z przebudowanym interfejsem submenu mediów i dynamicznym skalowaniem.
+ * Naprawiona wersja z funkcjonalnością zaznaczania wielu elementów i podświetlaniem
  */
 
 const MediaModule = (() => {
@@ -28,12 +28,36 @@ const MediaModule = (() => {
       playlistControlsContainer: null,
       playbackControls: null
     },
+    selection: {
+      active: false,
+      startPoint: null,
+      items: new Set(), // Przechowuje ID zaznaczonych elementów
+      shiftKeyActive: false,
+      lastSelected: null // Ostatnio zaznaczony element (dla Shift+kliknięcie)
+    },
+    activeHighlight: {
+      mediaId: null,
+      sourceType: null // 'library' lub 'playlist'
+    },
     fileInput: null
   };
 
   // INITIALIZATION
   const init = () => {
     document.addEventListener('DOMContentLoaded', () => setTimeout(initMediaImporter, 1000));
+
+    // Dodanie nasłuchiwania na klawisz Shift
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') {
+        state.selection.shiftKeyActive = true;
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') {
+        state.selection.shiftKeyActive = false;
+      }
+    });
   };
 
   const initMediaImporter = () => {
@@ -45,8 +69,6 @@ const MediaModule = (() => {
       return;
     }
 
-    // Style dla scrollbarów są teraz w głównym style.css, więc createStyleElement() może nie być potrzebne
-    // document.head.appendChild(createStyleElement());
     setupMediaImportUI();
     loadSavedMedia();
   };
@@ -59,15 +81,23 @@ const MediaModule = (() => {
       return;
     }
 
-    // Wyczyść istniejącą zawartość menuContent, aby uniknąć duplikatów przy ponownym wywołaniu (jeśli to możliwe)
-    // menuContent.innerHTML = ''; // Ostrożnie z tym, jeśli przycisk importu jest statyczny w HTML
+    // Czyścimy istniejącą zawartość, aby uniknąć duplikatów
+    menuContent.innerHTML = '';
 
     setupFileInput(); // Konfiguruje ukryty input file
 
-    // Przycisk "IMPORT MEDIA" jest zdefiniowany w HTML jako .submenu-item[data-action="import-media"]
-    // Poniższa funkcja setupImportButton() dodaje do niego event listener
-    setupImportButton();
+    // Dodaj przycisk importu mediów
+    const importButtonContainer = document.createElement('div');
+    const importButton = document.createElement('button');
+    importButton.className = 'submenu-item';
+    importButton.setAttribute('data-action', 'import-media');
+    importButton.textContent = 'IMPORT MEDIA';
+    importButton.addEventListener('click', () => state.fileInput.click());
+    importButtonContainer.appendChild(importButton);
+    menuContent.appendChild(importButtonContainer);
 
+    // Dodajemy separator
+    menuContent.appendChild(document.createElement('hr')).className = 'divider';
 
     // Tworzenie i dodawanie sekcji biblioteki mediów
     const mediaLibrarySection = createMediaLibrarySection();
@@ -78,16 +108,29 @@ const MediaModule = (() => {
     divider.className = 'divider';
     menuContent.appendChild(divider);
 
+    // Tworzenie i dodawanie sekcji przycisków szybkiej nawigacji
+    const quickNavSection = createQuickNavSection();
+    menuContent.appendChild(quickNavSection);
+
+    // Dodawanie separatora
+    const divider2 = document.createElement('hr');
+    divider2.className = 'divider';
+    menuContent.appendChild(divider2);
+
     // Tworzenie i dodawanie sekcji playlisty
     const playlistSection = createPlaylistSection();
     menuContent.appendChild(playlistSection);
 
-
-    // Inicjalizacja referencji do kontrolek odtwarzania (jeśli są używane globalnie)
+    // Inicjalizacja referencji do kontrolek odtwarzania
     state.dom.playbackControls = { style: { display: 'none' } };
   };
 
   const setupFileInput = () => {
+    // Usuń istniejący input, jeśli istnieje
+    if (state.fileInput && state.fileInput.parentNode) {
+      state.fileInput.parentNode.removeChild(state.fileInput);
+    }
+
     state.fileInput = document.createElement('input');
     state.fileInput.type = 'file';
     state.fileInput.id = 'media-file-input';
@@ -102,34 +145,169 @@ const MediaModule = (() => {
     });
   };
 
-  const setupImportButton = () => {
-    // Przycisk "IMPORT MEDIA" w submenu jest teraz .submenu-item
-    const importButton = state.dom.importSubmenu.querySelector('.submenu-item[data-action="import-media"]');
-    if (importButton) {
-      importButton.addEventListener('click', () => state.fileInput.click());
-    } else {
-      console.warn("Import media button not found in submenu.");
-    }
-  };
-
   const createMediaLibrarySection = () => {
     const section = document.createElement('div');
     section.id = 'media-library-section';
-    // Style dla sekcji (jak flex-grow) będą zarządzane przez CSS
 
     const title = document.createElement('h3');
     title.textContent = 'MEDIA';
-    // Style dla tytułu mogą pozostać lub przenieść do CSS
     title.style.fontSize = '14px';
     title.style.marginBottom = '10px';
     title.style.color = 'rgba(255, 255, 255, 0.7)';
     section.appendChild(title);
 
+    // Dodanie info o zaznaczaniu wielu elementów
+    const selectionInfo = document.createElement('div');
+    selectionInfo.className = 'selection-info';
+    selectionInfo.textContent = 'Shift+Click lub przeciągnij, aby zaznaczyć wiele';
+    selectionInfo.style.fontSize = '10px';
+    selectionInfo.style.color = 'rgba(255, 255, 255, 0.5)';
+    selectionInfo.style.marginBottom = '8px';
+    selectionInfo.style.textAlign = 'center';
+    section.appendChild(selectionInfo);
+
     const gallery = document.createElement('div');
     gallery.id = 'media-gallery';
-    // Usunięto style.height - będzie zarządzane przez CSS
     gallery.style.msOverflowStyle = 'none'; // Dla Firefox (ukrycie scrollbara jeśli niepotrzebny)
     gallery.style.scrollbarWidth = 'none';  // Dla Firefox
+
+    // Obsługa zaznaczania przez przeciągnięcie
+    let selectionBox = null;
+    let isSelecting = false;
+    let startPoint = { x: 0, y: 0 };
+
+    // Rozpoczęcie zaznaczania
+    gallery.addEventListener('mousedown', (e) => {
+      // Tylko lewy przycisk myszy i tylko jeśli kliknięto bezpośrednio w gallery (nie na jego dzieci)
+      if (e.button !== 0 || e.target !== gallery) return;
+
+      isSelecting = true;
+      startPoint = { x: e.clientX, y: e.clientY };
+
+      if (selectionBox) {
+        gallery.removeChild(selectionBox);
+      }
+
+      selectionBox = document.createElement('div');
+      selectionBox.className = 'selection-box';
+      selectionBox.style.position = 'absolute';
+      selectionBox.style.border = '1px solid var(--primary-color)';
+      selectionBox.style.backgroundColor = 'rgba(var(--primary-color-rgb), 0.1)';
+      selectionBox.style.pointerEvents = 'none';
+      selectionBox.style.zIndex = '10';
+
+      selectionBox.style.left = startPoint.x + 'px';
+      selectionBox.style.top = startPoint.y + 'px';
+      selectionBox.style.width = '0px';
+      selectionBox.style.height = '0px';
+
+      // Konwersja do koordynatów względem gallery
+      const galleryRect = gallery.getBoundingClientRect();
+      const scrollTop = gallery.scrollTop;
+      const scrollLeft = gallery.scrollLeft;
+
+      selectionBox.style.left = (startPoint.x - galleryRect.left + scrollLeft) + 'px';
+      selectionBox.style.top = (startPoint.y - galleryRect.top + scrollTop) + 'px';
+
+      gallery.appendChild(selectionBox);
+
+      // Jeśli nie przytrzymano Shift, wyczyść poprzednie zaznaczenie
+      if (!state.selection.shiftKeyActive) {
+        clearSelection();
+      }
+    });
+
+    // Aktualizacja zaznaczenia podczas przeciągania
+    gallery.addEventListener('mousemove', (e) => {
+      if (!isSelecting || !selectionBox) return;
+
+      const galleryRect = gallery.getBoundingClientRect();
+      const scrollTop = gallery.scrollTop;
+      const scrollLeft = gallery.scrollLeft;
+
+      const currentX = e.clientX - galleryRect.left + scrollLeft;
+      const currentY = e.clientY - galleryRect.top + scrollTop;
+      const startX = startPoint.x - galleryRect.left + scrollLeft;
+      const startY = startPoint.y - galleryRect.top + scrollTop;
+
+      const left = Math.min(startX, currentX);
+      const top = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+
+      selectionBox.style.left = left + 'px';
+      selectionBox.style.top = top + 'px';
+      selectionBox.style.width = width + 'px';
+      selectionBox.style.height = height + 'px';
+
+      // Sprawdź, które miniatury są w zaznaczeniu
+      const selectionRect = {
+        left: left,
+        top: top,
+        right: left + width,
+        bottom: top + height
+      };
+
+      // Aktualizuj zaznaczenie na bieżąco
+      const thumbnails = gallery.querySelectorAll('.media-thumbnail');
+      thumbnails.forEach(thumbnail => {
+        const thumbnailRect = thumbnail.getBoundingClientRect();
+        const thumbLeft = thumbnailRect.left - galleryRect.left + scrollLeft;
+        const thumbTop = thumbnailRect.top - galleryRect.top + scrollTop;
+        const thumbRight = thumbLeft + thumbnailRect.width;
+        const thumbBottom = thumbTop + thumbnailRect.height;
+
+        // Sprawdź czy miniatury przecinają się z zaznaczeniem
+        if (
+            thumbRight >= selectionRect.left &&
+            thumbLeft <= selectionRect.right &&
+            thumbBottom >= selectionRect.top &&
+            thumbTop <= selectionRect.bottom
+        ) {
+          const mediaId = thumbnail.dataset.id;
+          addToSelection(mediaId);
+          thumbnail.classList.add('selected');
+        } else if (!state.selection.shiftKeyActive) {
+          const mediaId = thumbnail.dataset.id;
+          removeFromSelection(mediaId);
+          thumbnail.classList.remove('selected');
+        }
+      });
+    });
+
+    // Zakończenie zaznaczania
+    gallery.addEventListener('mouseup', (e) => {
+      if (!isSelecting) return;
+
+      isSelecting = false;
+
+      if (selectionBox && selectionBox.parentNode) {
+        gallery.removeChild(selectionBox);
+      }
+      selectionBox = null;
+
+      // Zapisz ostatni zaznaczony element
+      if (state.selection.items.size > 0) {
+        state.selection.lastSelected = Array.from(state.selection.items)[state.selection.items.size - 1];
+      }
+
+      updateMediaSelectionUI();
+    });
+
+    // Zatrzymanie zaznaczania, gdy mysz opuści galerię
+    gallery.addEventListener('mouseleave', () => {
+      if (isSelecting && selectionBox && selectionBox.parentNode) {
+        // Nie kończymy zaznaczania, tylko ukrywamy wizualny box
+        selectionBox.style.display = 'none';
+      }
+    });
+
+    // Przywracanie zaznaczania, gdy mysz wraca do galerii
+    gallery.addEventListener('mouseenter', () => {
+      if (isSelecting && selectionBox) {
+        selectionBox.style.display = 'block';
+      }
+    });
 
     const emptyState = document.createElement('div');
     emptyState.id = 'media-empty-state';
@@ -145,10 +323,56 @@ const MediaModule = (() => {
     return section;
   };
 
+  const createQuickNavSection = () => {
+    const section = document.createElement('div');
+    section.id = 'quick-nav-section';
+    section.style.display = 'flex';
+    section.style.gap = '8px';
+    section.style.marginBottom = '8px';
+
+    // Przycisk Effects
+    const effectsButton = document.createElement('button');
+    effectsButton.textContent = 'EFFECTS';
+    effectsButton.className = 'quick-nav-button btn btn-secondary';
+    effectsButton.style.flex = '1';
+    effectsButton.addEventListener('click', () => {
+      // Zamknij aktywne submenu
+      closeAllSubmenus();
+      // Symuluj kliknięcie "EFFECTS" w menu głównym
+      const effectsMenuItem = document.querySelector('.category-item[data-action="effects"]');
+      if (effectsMenuItem) {
+        effectsMenuItem.click();
+      } else {
+        showNotification('Nie znaleziono opcji EFFECTS w menu głównym', 'warning');
+      }
+    });
+
+    // Przycisk Transitions
+    const transitionsButton = document.createElement('button');
+    transitionsButton.textContent = 'TRANSITIONS';
+    transitionsButton.className = 'quick-nav-button btn btn-secondary';
+    transitionsButton.style.flex = '1';
+    transitionsButton.addEventListener('click', () => {
+      // Zamknij aktywne submenu
+      closeAllSubmenus();
+      // Symuluj kliknięcie "TRANSITIONS" w menu głównym
+      const transitionsMenuItem = document.querySelector('.category-item[data-action="transitions"]');
+      if (transitionsMenuItem) {
+        transitionsMenuItem.click();
+      } else {
+        showNotification('Nie znaleziono opcji TRANSITIONS w menu głównym', 'warning');
+      }
+    });
+
+    section.appendChild(effectsButton);
+    section.appendChild(transitionsButton);
+
+    return section;
+  };
+
   const createPlaylistSection = () => {
     const section = document.createElement('div');
     section.id = 'playlist-section';
-    // Style dla sekcji (jak flex-grow) będą zarządzane przez CSS
 
     const title = document.createElement('h3');
     title.textContent = 'PLAYLIST';
@@ -159,7 +383,6 @@ const MediaModule = (() => {
 
     const playlistContainer = document.createElement('div');
     playlistContainer.id = 'playlist-container';
-    // Usunięto style.height i padding-bottom - będzie zarządzane przez CSS
     playlistContainer.style.msOverflowStyle = 'none';
     playlistContainer.style.scrollbarWidth = 'none';
     playlistContainer.style.display = 'flex'; // Potrzebne dla flex-direction
@@ -192,7 +415,6 @@ const MediaModule = (() => {
     if (!controlsContainer) {
       controlsContainer = document.createElement('div');
       controlsContainer.id = 'playlist-controls';
-      // Style dla #playlist-controls są w CSS
     }
     state.dom.playlistControlsContainer = controlsContainer;
     createPlaylistControls(controlsContainer); // Przekaż kontener do funkcji
@@ -221,6 +443,100 @@ const MediaModule = (() => {
       button.addEventListener('click', btnData.handler);
       controlsContainer.appendChild(button);
     });
+  };
+
+  // FUNKCJE ZARZĄDZANIA ZAZNACZENIEM
+  const clearSelection = () => {
+    state.selection.items.clear();
+    state.selection.lastSelected = null;
+    updateMediaSelectionUI();
+  };
+
+  const addToSelection = (mediaId) => {
+    state.selection.items.add(mediaId);
+  };
+
+  const removeFromSelection = (mediaId) => {
+    state.selection.items.delete(mediaId);
+  };
+
+  const toggleSelection = (mediaId) => {
+    if (state.selection.items.has(mediaId)) {
+      state.selection.items.delete(mediaId);
+    } else {
+      state.selection.items.add(mediaId);
+    }
+    updateMediaSelectionUI();
+  };
+
+  const selectRange = (startId, endId) => {
+    // Znajdujemy indeksy elementów w bibliotece
+    const startIndex = state.mediaLibrary.findIndex(m => m.id === startId);
+    const endIndex = state.mediaLibrary.findIndex(m => m.id === endId);
+
+    if (startIndex === -1 || endIndex === -1) return;
+
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+
+    // Dodaj wszystkie elementy w zakresie do zaznaczenia
+    for (let i = minIndex; i <= maxIndex; i++) {
+      addToSelection(state.mediaLibrary[i].id);
+    }
+
+    updateMediaSelectionUI();
+  };
+
+  const updateMediaSelectionUI = () => {
+    const thumbnails = state.dom.mediaGallery.querySelectorAll('.media-thumbnail');
+    thumbnails.forEach(thumbnail => {
+      const mediaId = thumbnail.dataset.id;
+      if (state.selection.items.has(mediaId)) {
+        thumbnail.classList.add('selected');
+      } else {
+        thumbnail.classList.remove('selected');
+      }
+    });
+  };
+
+  // FUNKCJE ZARZĄDZANIA PODŚWIETLENIEM AKTYWNEGO MEDIA
+  const updateActiveHighlight = (mediaId, sourceType) => {
+    // Usuń wszystkie aktywne podświetlenia
+    removeAllActiveHighlights();
+
+    // Jeśli nie przekazano ID, po prostu usuń podświetlenia
+    if (!mediaId) return;
+
+    // Zapisz informacje o aktywnym elemencie
+    state.activeHighlight.mediaId = mediaId;
+    state.activeHighlight.sourceType = sourceType;
+
+    // Dodaj podświetlenie do odpowiedniego elementu
+    if (sourceType === 'library') {
+      const thumbnail = state.dom.mediaGallery.querySelector(`.media-thumbnail[data-id="${mediaId}"]`);
+      if (thumbnail) {
+        thumbnail.classList.add('playing-from-here');
+      }
+    } else if (sourceType === 'playlist') {
+      const playlistItem = state.dom.playlistContainer.querySelector(`.playlist-item[data-id="${mediaId}"]`);
+      if (playlistItem) {
+        playlistItem.classList.add('playing-from-here');
+      }
+    }
+  };
+
+  const removeAllActiveHighlights = () => {
+    // Usuń klasę ze wszystkich elementów biblioteki
+    const thumbnails = state.dom.mediaGallery.querySelectorAll('.media-thumbnail.playing-from-here');
+    thumbnails.forEach(el => el.classList.remove('playing-from-here'));
+
+    // Usuń klasę ze wszystkich elementów playlisty
+    const playlistItems = state.dom.playlistContainer.querySelectorAll('.playlist-item.playing-from-here');
+    playlistItems.forEach(el => el.classList.remove('playing-from-here'));
+
+    // Resetuj stan
+    state.activeHighlight.mediaId = null;
+    state.activeHighlight.sourceType = null;
   };
 
   // FILE HANDLING
@@ -269,7 +585,6 @@ const MediaModule = (() => {
     if (type === 'video' && mediaItem.settings) {
       mediaItem.settings.trimSettings = { trimEnabled: true, startTime: 0, endTime: null };
     }
-
 
     generateThumbnail(mediaItem, file).then(thumbnail => {
       mediaItem.thumbnail = thumbnail;
@@ -382,15 +697,15 @@ const MediaModule = (() => {
     Array.from(gallery.querySelectorAll('.media-thumbnail')).forEach(child => child.remove());
 
     state.mediaLibrary.forEach(media => gallery.appendChild(createMediaThumbnail(media)));
-    makeMediaGallerySortable(); // Dodajemy możliwość sortowania
-  };
 
-  const makeMediaGallerySortable = () => {
-    // Implementacja sortowania dla mediaGallery, jeśli potrzebna (punkt 3.2)
-    // Na razie, skupiamy się na playliście. Jeśli to ma dotyczyć biblioteki, trzeba to zaimplementować.
-    // Można użyć biblioteki jak SortableJS lub napisać własną logikę drag & drop.
-  };
+    // Po dodaniu wszystkich miniatur, przywróć zaznaczenie (jeśli istnieje)
+    updateMediaSelectionUI();
 
+    // Przywróć podświetlenie aktywnego klipu (jeśli istnieje)
+    if (state.activeHighlight.mediaId && state.activeHighlight.sourceType === 'library') {
+      updateActiveHighlight(state.activeHighlight.mediaId, 'library');
+    }
+  };
 
   const createMediaThumbnail = (media) => {
     const thumbnail = document.createElement('div');
@@ -398,15 +713,26 @@ const MediaModule = (() => {
     thumbnail.dataset.id = media.id;
     thumbnail.draggable = true; // Umożliwia przeciąganie do playlisty
 
+    // Element do podświetlenia aktywnego (obecnie odtwarzanego) klipu
+    const highlightRing = document.createElement('div');
+    highlightRing.className = 'media-active-highlight-ring';
+    thumbnail.appendChild(highlightRing);
+
     thumbnail.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', media.id);
+      // Jeśli element jest częścią zaznaczenia, a mamy więcej zaznaczonych elementów
+      if (state.selection.items.has(media.id) && state.selection.items.size > 1) {
+        // Przygotuj dane dla przeciągania wielu elementów
+        const selectedIds = Array.from(state.selection.items);
+        e.dataTransfer.setData('application/json', JSON.stringify({
+          type: 'multiple-media',
+          ids: selectedIds
+        }));
+      } else {
+        // Pojedynczy element
+        e.dataTransfer.setData('text/plain', media.id);
+      }
       e.dataTransfer.effectAllowed = 'copy';
-      // Dodanie klasy sygnalizującej przeciąganie (opcjonalne, dla stylizacji)
-      // thumbnail.classList.add('dragging');
     });
-    // thumbnail.addEventListener('dragend', () => {
-    //   thumbnail.classList.remove('dragging');
-    // });
 
     // Kontener na obrazek/podejrzenie wideo
     const imgContainer = document.createElement('div');
@@ -447,7 +773,6 @@ const MediaModule = (() => {
     });
     thumbnail.appendChild(settingsBtn);
 
-
     // Przycisk usuwania
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'media-delete-btn btn btn-icon btn-danger';
@@ -455,15 +780,55 @@ const MediaModule = (() => {
     deleteBtn.setAttribute('aria-label', 'Delete clip');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      deleteMedia(media.id);
+
+      // Jeśli element jest częścią zaznaczenia, a mamy więcej zaznaczonych elementów, usuń wszystkie zaznaczone
+      if (state.selection.items.has(media.id) && state.selection.items.size > 1) {
+        const selectedIds = Array.from(state.selection.items);
+        if (confirm(`Czy na pewno chcesz usunąć ${selectedIds.length} zaznaczonych klipów?`)) {
+          selectedIds.forEach(id => deleteMedia(id));
+        }
+      } else {
+        // Usuń pojedynczy element
+        deleteMedia(media.id);
+      }
     });
     thumbnail.appendChild(deleteBtn);
 
     // Tooltip z pełną nazwą (jeśli jest obcięta)
     thumbnail.setAttribute('data-tooltip', media.name); // Można użyć globalnego systemu tooltipów, jeśli istnieje
 
-    // Kliknięcie na miniaturkę odtwarza pojedynczy klip w pętli
-    thumbnail.addEventListener('click', () => selectMedia(media, true)); // true oznacza odtwarzanie w pętli
+    // Obsługa kliknięcia - zaznaczanie i odtwarzanie
+    thumbnail.addEventListener('click', (e) => {
+      // Jeśli kliknięto na przyciski, nie reaguj (już obsługiwane przez ich własne event listenery)
+      if (e.target === settingsBtn || settingsBtn.contains(e.target) ||
+          e.target === deleteBtn || deleteBtn.contains(e.target)) {
+        return;
+      }
+
+      // Obsługa zaznaczania
+      if (state.selection.shiftKeyActive && state.selection.lastSelected) {
+        // Zaznaczanie zakresu przez Shift+kliknięcie
+        selectRange(state.selection.lastSelected, media.id);
+      } else if (state.selection.shiftKeyActive) {
+        // Shift+kliknięcie bez wcześniejszego zaznaczenia - zaznacz tylko ten element
+        clearSelection();
+        addToSelection(media.id);
+        state.selection.lastSelected = media.id;
+        updateMediaSelectionUI();
+      } else if (state.selection.items.size > 0 && state.selection.items.has(media.id)) {
+        // Kliknięcie na zaznaczony element - odtwarzanie
+        selectMedia(media, true); // true oznacza odtwarzanie w pętli
+      } else {
+        // Kliknięcie na niezaznaczony element - wyczyść zaznaczenie i zaznacz tylko ten
+        clearSelection();
+        addToSelection(media.id);
+        state.selection.lastSelected = media.id;
+        updateMediaSelectionUI();
+
+        // Odtwarzaj tylko jeśli był to pojedynczy klik (nie część zaznaczania)
+        selectMedia(media, true); // true oznacza odtwarzanie w pętli
+      }
+    });
 
     return thumbnail;
   };
@@ -511,6 +876,19 @@ const MediaModule = (() => {
     const body = document.createElement('div');
     body.className = 'media-settings-dialog-body';
 
+    // Tooltip o stosowaniu ustawień
+    const settingsTooltip = document.createElement('div');
+    settingsTooltip.className = 'settings-tooltip';
+    settingsTooltip.textContent = 'Ustawienia zostaną zastosowane zarówno podczas odtwarzania z biblioteki jak i z playlisty';
+    settingsTooltip.style.backgroundColor = 'rgba(var(--primary-color-rgb), 0.1)';
+    settingsTooltip.style.padding = '8px';
+    settingsTooltip.style.borderRadius = '4px';
+    settingsTooltip.style.fontSize = '12px';
+    settingsTooltip.style.marginBottom = '15px';
+    settingsTooltip.style.color = 'var(--primary-color)';
+    settingsTooltip.style.textAlign = 'center';
+    body.appendChild(settingsTooltip);
+
     // 1. Edycja nazwy klipu
     const nameGroup = document.createElement('div');
     nameGroup.className = 'form-group';
@@ -525,21 +903,203 @@ const MediaModule = (() => {
     nameGroup.appendChild(nameInput);
     body.appendChild(nameGroup);
 
-    if (media.type === 'video') {
-      // 2. Przycinanie (Trim Settings) - użyjemy istniejącej funkcji openTrimSettings, ale dostosujemy ją
-      // Na razie prosty przycisk otwierający istniejące okno przycinania
-      const trimBtn = document.createElement('button');
-      trimBtn.className = 'btn btn-secondary setting-btn';
-      trimBtn.textContent = 'Adjust Trimming';
-      trimBtn.onclick = () => {
-        // openTrimSettings(media); // Użyjemy zmodyfikowanej lub nowej funkcji
-        // Na razie, aby uniknąć konfliktu z zamykaniem, tymczasowo:
-        console.log("Open trim settings for:", media.name);
-        showNotification("Trim settings would open here.", "info");
-        // TODO: Zintegrować lub przerobić openTrimSettings, aby działało w tym dialogu
-      };
-      body.appendChild(trimBtn);
+    // Referencje dla zintegrowanego przycinania wideo
+    let videoPreview = null;
+    let trimContainer = null;
+    let trimRegion = null;
+    let timeDisplay = null;
+    let videoDuration = 0;
+    let startTime = 0;
+    let endTime = 0;
 
+    if (media.type === 'video') {
+      // 2. Przycinanie (Trim Settings) - ZINTEGROWANE w tym oknie
+      const trimGroup = document.createElement('div');
+      trimGroup.className = 'form-group';
+      const trimLabel = document.createElement('label');
+      trimLabel.textContent = 'Trim Video:';
+      trimGroup.appendChild(trimLabel);
+
+      // Podgląd wideo
+      videoPreview = document.createElement('video');
+      videoPreview.src = media.url;
+      videoPreview.controls = true;
+      videoPreview.muted = !(media.settings?.volume > 0);
+      videoPreview.style.width = '100%';
+      videoPreview.style.marginBottom = '10px';
+      videoPreview.style.backgroundColor = '#000';
+      videoPreview.style.borderRadius = '4px';
+      trimGroup.appendChild(videoPreview);
+
+      // Używamy trimSettings z obiektu media.settings, jeśli istnieje, inaczej z media.trimSettings
+      let currentTrimSettings = media.settings?.trimSettings || media.trimSettings || { trimEnabled: true, startTime: 0, endTime: null };
+      startTime = currentTrimSettings.startTime || 0;
+      endTime = currentTrimSettings.endTime;
+
+      videoPreview.onloadedmetadata = function() {
+        videoDuration = videoPreview.duration;
+        if (endTime === null || endTime === 0 || endTime > videoDuration) {
+          endTime = videoDuration;
+        }
+        // Ustawienie początkowego czasu wideo na startTime dla podglądu
+        videoPreview.currentTime = startTime;
+        updateTimeDisplay();
+      };
+
+      // Opis instrukcji
+      const trimDescription = document.createElement('div');
+      trimDescription.className = 'trim-description';
+      trimDescription.textContent = 'Dostosuj punkty początkowy i końcowy klipu za pomocą suwaków:';
+      trimDescription.style.fontSize = '12px';
+      trimDescription.style.marginBottom = '10px';
+      trimDescription.style.color = 'rgba(255, 255, 255, 0.7)';
+      trimGroup.appendChild(trimDescription);
+
+      // Kontener na UI przycinania
+      trimContainer = document.createElement('div');
+
+      // Suwak dla punktu początkowego (startTime)
+      const startTimeGroup = document.createElement('div');
+      startTimeGroup.className = 'form-group';
+      startTimeGroup.style.marginBottom = '15px';
+      const startTimeLabel = document.createElement('label');
+      startTimeLabel.htmlFor = `trim-start-${media.id}`;
+      startTimeLabel.textContent = 'Start Point:';
+      const startTimeInput = document.createElement('input');
+      startTimeInput.type = 'range';
+      startTimeInput.id = `trim-start-${media.id}`;
+      startTimeInput.min = '0';
+      startTimeInput.max = '100'; // Używamy procentów, później przeliczamy
+      startTimeInput.step = '0.1';
+      startTimeInput.value = (startTime / videoDuration) * 100 || 0;
+
+      const startTimeDisplay = document.createElement('span');
+      startTimeDisplay.textContent = formatTimeSimple(startTime);
+      startTimeDisplay.style.marginLeft = '10px';
+
+      startTimeInput.oninput = () => {
+        const percent = parseFloat(startTimeInput.value) / 100;
+        startTime = percent * videoDuration;
+        // Zapewniamy, że startTime nie przekroczy endTime
+        if (startTime >= endTime) {
+          startTime = Math.max(0, endTime - 0.1);
+          startTimeInput.value = (startTime / videoDuration) * 100;
+        }
+        startTimeDisplay.textContent = formatTimeSimple(startTime);
+        videoPreview.currentTime = startTime; // Aktualizuj podgląd wideo
+        updateTimeDisplay();
+      };
+
+      startTimeGroup.appendChild(startTimeLabel);
+      startTimeGroup.appendChild(startTimeInput);
+      startTimeGroup.appendChild(startTimeDisplay);
+      trimContainer.appendChild(startTimeGroup);
+
+      // Suwak dla punktu końcowego (endTime)
+      const endTimeGroup = document.createElement('div');
+      endTimeGroup.className = 'form-group';
+      const endTimeLabel = document.createElement('label');
+      endTimeLabel.htmlFor = `trim-end-${media.id}`;
+      endTimeLabel.textContent = 'End Point:';
+      const endTimeInput = document.createElement('input');
+      endTimeInput.type = 'range';
+      endTimeInput.id = `trim-end-${media.id}`;
+      endTimeInput.min = '0';
+      endTimeInput.max = '100'; // Używamy procentów, później przeliczamy
+      endTimeInput.step = '0.1';
+      endTimeInput.value = (endTime / videoDuration) * 100 || 100;
+
+      const endTimeDisplay = document.createElement('span');
+      endTimeDisplay.textContent = formatTimeSimple(endTime);
+      endTimeDisplay.style.marginLeft = '10px';
+
+      endTimeInput.oninput = () => {
+        const percent = parseFloat(endTimeInput.value) / 100;
+        endTime = percent * videoDuration;
+        // Zapewniamy, że endTime nie będzie mniejszy niż startTime
+        if (endTime <= startTime) {
+          endTime = startTime + 0.1;
+          endTimeInput.value = (endTime / videoDuration) * 100;
+        }
+        endTimeDisplay.textContent = formatTimeSimple(endTime);
+        videoPreview.currentTime = endTime; // Aktualizuj podgląd wideo
+        updateTimeDisplay();
+      };
+
+      endTimeGroup.appendChild(endTimeLabel);
+      endTimeGroup.appendChild(endTimeInput);
+      endTimeGroup.appendChild(endTimeDisplay);
+      trimContainer.appendChild(endTimeGroup);
+
+      // Wizualizacja zakresu przycinania
+      const trimUIContainer = document.createElement('div');
+      Object.assign(trimUIContainer.style, {
+        position: 'relative',
+        height: '20px',
+        backgroundColor: '#111',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        marginTop: '15px',
+        marginBottom: '15px'
+      });
+
+      const timeline = document.createElement('div');
+      Object.assign(timeline.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#333'
+      });
+
+      trimRegion = document.createElement('div');
+      Object.assign(trimRegion.style, {
+        position: 'absolute',
+        top: '0',
+        height: '100%',
+        backgroundColor: 'rgba(var(--primary-color-rgb), 0.5)',
+        borderLeft: '2px solid var(--primary-color)',
+        borderRight: '2px solid var(--primary-color)',
+        boxSizing: 'border-box'
+      });
+
+      timeDisplay = document.createElement('div');
+      timeDisplay.style.marginTop = '5px';
+      timeDisplay.style.fontSize = '12px';
+      timeDisplay.style.textAlign = 'center';
+      timeDisplay.style.color = 'rgba(255, 255, 255, 0.7)';
+
+      // Funkcja aktualizacji wyświetlania czasu i wizualizacji przycinania
+      const updateTimeDisplay = () => {
+        if (videoDuration === 0) return; // Unikaj dzielenia przez zero
+        const startPercent = (startTime / videoDuration) * 100;
+        const endPercent = (endTime / videoDuration) * 100;
+        trimRegion.style.left = startPercent + '%';
+        trimRegion.style.width = Math.max(0, endPercent - startPercent) + '%'; // Zapobiegaj ujemnej szerokości
+        timeDisplay.textContent = `Start: ${formatTimeSimple(startTime)} | End: ${formatTimeSimple(endTime)} | Duration: ${formatTimeSimple(Math.max(0, endTime - startTime))}`;
+
+        // Aktualizuj wartości suwaków
+        if (startTimeInput) startTimeInput.value = (startTime / videoDuration) * 100;
+        if (endTimeInput) endTimeInput.value = (endTime / videoDuration) * 100;
+        if (startTimeDisplay) startTimeDisplay.textContent = formatTimeSimple(startTime);
+        if (endTimeDisplay) endTimeDisplay.textContent = formatTimeSimple(endTime);
+      };
+
+      // Dodaj możliwość kliknięcia na timeline, aby przejść do tego punktu
+      timeline.addEventListener('click', (e) => {
+        const trimRect = trimUIContainer.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (e.clientX - trimRect.left) / trimRect.width));
+        videoPreview.currentTime = percent * videoDuration;
+      });
+
+      timeline.appendChild(trimRegion);
+      trimUIContainer.appendChild(timeline);
+      trimContainer.appendChild(trimUIContainer);
+      trimContainer.appendChild(timeDisplay);
+
+      trimGroup.appendChild(trimContainer);
+      body.appendChild(trimGroup);
 
       // 3. Regulacja głośności (Volume)
       const volumeGroup = document.createElement('div');
@@ -558,6 +1118,11 @@ const MediaModule = (() => {
       volumeValueDisplay.textContent = `${Math.round(volumeInput.value * 100)}%`;
       volumeInput.oninput = () => {
         volumeValueDisplay.textContent = `${Math.round(volumeInput.value * 100)}%`;
+        // Aktualizuj głośność podglądu
+        if (videoPreview) {
+          videoPreview.volume = volumeInput.value;
+          videoPreview.muted = volumeInput.value === 0;
+        }
       };
       volumeGroup.appendChild(volumeLabel);
       volumeGroup.appendChild(volumeInput);
@@ -581,6 +1146,10 @@ const MediaModule = (() => {
       rateValueDisplay.textContent = `${rateInput.value}x`;
       rateInput.oninput = () => {
         rateValueDisplay.textContent = `${rateInput.value}x`;
+        // Aktualizuj szybkość podglądu
+        if (videoPreview) {
+          videoPreview.playbackRate = parseFloat(rateInput.value);
+        }
       };
       rateGroup.appendChild(rateLabel);
       rateGroup.appendChild(rateInput);
@@ -588,19 +1157,53 @@ const MediaModule = (() => {
       body.appendChild(rateGroup);
     }
 
-    // 5. Link do efektów (placeholder)
-    const effectsLink = document.createElement('a'); // Lub button stylizowany na link
-    effectsLink.href = '#'; // Placeholder
-    effectsLink.textContent = 'Go to Effects Section';
-    effectsLink.className = 'btn btn-text setting-btn'; // Stylizacja
-    effectsLink.onclick = (e) => {
-      e.preventDefault();
-      showNotification('Navigating to Effects section (not implemented yet).', 'info');
-      // Tutaj logika nawigacji do sekcji efektów, np. przez wywołanie funkcji z głównego menu
-      // WallpaperApp.UI.openSubmenu('effects'); // Przykład
-      closeBtn.click(); // Zamknij dialog po kliknięciu
+    // 5. Przyciski nawigacji do efektów i przejść
+    const navButtonsContainer = document.createElement('div');
+    navButtonsContainer.style.display = 'flex';
+    navButtonsContainer.style.gap = '10px';
+    navButtonsContainer.style.marginTop = '20px';
+
+    // Przycisk do efektów
+    const effectsLink = document.createElement('button');
+    effectsLink.textContent = 'Go to Effects';
+    effectsLink.className = 'btn btn-secondary setting-btn';
+    effectsLink.style.flex = '1';
+    effectsLink.onclick = () => {
+      // Zamknij dialog ustawień
+      closeBtn.click();
+      // Zamknij aktywne submenu
+      closeAllSubmenus();
+      // Otwórz sekcję efektów
+      const effectsMenuItem = document.querySelector('.category-item[data-action="effects"]');
+      if (effectsMenuItem) {
+        effectsMenuItem.click();
+      } else {
+        showNotification('Nie znaleziono opcji EFFECTS w menu głównym', 'warning');
+      }
     };
-    body.appendChild(effectsLink);
+
+    // Przycisk do przejść
+    const transitionsLink = document.createElement('button');
+    transitionsLink.textContent = 'Go to Transitions';
+    transitionsLink.className = 'btn btn-secondary setting-btn';
+    transitionsLink.style.flex = '1';
+    transitionsLink.onclick = () => {
+      // Zamknij dialog ustawień
+      closeBtn.click();
+      // Zamknij aktywne submenu
+      closeAllSubmenus();
+      // Otwórz sekcję przejść
+      const transitionsMenuItem = document.querySelector('.category-item[data-action="transitions"]');
+      if (transitionsMenuItem) {
+        transitionsMenuItem.click();
+      } else {
+        showNotification('Nie znaleziono opcji TRANSITIONS w menu głównym', 'warning');
+      }
+    };
+
+    navButtonsContainer.appendChild(effectsLink);
+    navButtonsContainer.appendChild(transitionsLink);
+    body.appendChild(navButtonsContainer);
 
     dialog.appendChild(body);
 
@@ -617,7 +1220,19 @@ const MediaModule = (() => {
         if (!media.settings) media.settings = {};
         media.settings.volume = parseFloat(document.getElementById(`media-volume-${media.id}`).value);
         media.settings.playbackRate = parseFloat(document.getElementById(`media-rate-${media.id}`).value);
-        // Zapisz zmiany trim (jeśli zintegrowane)
+
+        // Zapisz ustawienia przycinania
+        if (!media.settings.trimSettings) {
+          media.settings.trimSettings = { trimEnabled: true, startTime: 0, endTime: videoDuration };
+        }
+        media.settings.trimSettings.startTime = startTime;
+        media.settings.trimSettings.endTime = endTime;
+
+        // Zachowaj kompatybilność ze starą strukturą
+        if (media.trimSettings) {
+          media.trimSettings.startTime = startTime;
+          media.trimSettings.endTime = endTime;
+        }
       }
       updateMediaGallery(); // Odśwież miniaturkę (np. nazwę)
       updatePlaylistUI();   // Odśwież element na playliście, jeśli tam jest
@@ -639,400 +1254,9 @@ const MediaModule = (() => {
 
     // Focus na pierwszym inputie
     nameInput.focus();
-  };
 
-
-  // Funkcja openTrimSettings - wymaga modyfikacji lub zastąpienia przez integrację z nowym dialogiem
-  const openTrimSettings = (media) => {
-    // Ta funkcja jest teraz częściowo zduplikowana/konkuruje z openMediaSettingsDialog
-    // Należy ją zintegrować lub wywoływać jako część nowego dialogu.
-    // Na razie, dla zachowania funkcjonalności, zostawiam ją, ale powinna być refaktoryzowana.
-    if (media.type !== 'video') return;
-    console.warn("openTrimSettings called - should be integrated into the new settings dialog.");
-
-    const existingDialog = document.querySelector('.trim-dialog-backdrop');
-    if (existingDialog) existingDialog.remove();
-
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'trim-dialog-backdrop acrylic acrylic-dark';
-    Object.assign(backdrop.style, { position: 'fixed', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: '1000', display: 'flex', justifyContent: 'center', alignItems: 'center' });
-
-    const dialog = document.createElement('div');
-    dialog.className = 'trim-dialog';
-    Object.assign(dialog.style, { width: '80%', maxWidth: '600px', backgroundColor: '#222', borderRadius: '8px', padding: '20px', color: 'white', boxShadow: '0 5px 15px rgba(0,0,0,0.3)' });
-    // Animacja dla okna trim
-    dialog.style.opacity = '0';
-    dialog.style.transform = 'scale(0.95)';
-    dialog.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    setTimeout(() => {
-      dialog.style.opacity = '1';
-      dialog.style.transform = 'scale(1)';
-    }, 10);
-
-
-    const title = document.createElement('h3');
-    title.textContent = 'Trim Video: ' + media.name; title.style.marginTop = '0'; title.style.marginBottom = '15px';
-
-    const videoPreview = document.createElement('video');
-    videoPreview.src = media.url; videoPreview.controls = true; videoPreview.muted = !(media.settings?.volume > 0); // Użyj zapisanej głośności
-    videoPreview.style.width = '100%'; videoPreview.style.marginBottom = '20px'; videoPreview.style.backgroundColor = '#000'; videoPreview.style.borderRadius = '4px';
-
-    let videoDuration = 0;
-    // Używamy trimSettings z obiektu media.settings, jeśli istnieje, inaczej z media.trimSettings
-    let currentTrimSettings = media.settings?.trimSettings || media.trimSettings || { trimEnabled: true, startTime: 0, endTime: null };
-    let startTime = currentTrimSettings.startTime || 0;
-    let endTime = currentTrimSettings.endTime;
-
-
-    videoPreview.onloadedmetadata = function() {
-      videoDuration = videoPreview.duration;
-      if (endTime === null || endTime === 0 || endTime > videoDuration) endTime = videoDuration;
-      // Ustawienie początkowego czasu wideo na startTime dla podglądu
-      videoPreview.currentTime = startTime;
-      updateTimeDisplay();
-    };
-
-    const formatTime = (seconds) => { const min = Math.floor(seconds / 60), sec = Math.floor(seconds % 60), ms = Math.floor((seconds % 1) * 100); return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`; };
-    const trimContainer = document.createElement('div'); trimContainer.style.marginBottom = '20px';
-    const trimUIContainer = document.createElement('div'); Object.assign(trimUIContainer.style, { position: 'relative', height: '50px', backgroundColor: '#111', borderRadius: '4px', overflow: 'hidden', marginTop: '10px', marginBottom: '10px', cursor: 'pointer' });
-    const timeline = document.createElement('div'); Object.assign(timeline.style, { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: '#333' });
-    const trimRegion = document.createElement('div'); Object.assign(trimRegion.style, { position: 'absolute', top: '0', height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.2)', borderLeft: '2px solid white', borderRight: '2px solid white', boxSizing: 'border-box' });
-    const leftHandle = document.createElement('div'); Object.assign(leftHandle.style, { position: 'absolute', top: '0', left: '-5px', width: '10px', height: '100%', backgroundColor: 'white', cursor: 'ew-resize', zIndex: '10' });
-    const rightHandle = document.createElement('div'); Object.assign(rightHandle.style, { position: 'absolute', top: '0', right: '-5px', width: '10px', height: '100%', backgroundColor: 'white', cursor: 'ew-resize', zIndex: '10' });
-    const timeDisplay = document.createElement('div'); timeDisplay.style.marginTop = '10px'; timeDisplay.style.fontSize = '14px'; timeDisplay.style.textAlign = 'center';
-
-    function updateTimeDisplay() {
-      if (videoDuration === 0) return; // Unikaj dzielenia przez zero
-      const startPercent = (startTime / videoDuration) * 100;
-      const endPercent = (endTime / videoDuration) * 100;
-      trimRegion.style.left = startPercent + '%';
-      trimRegion.style.width = Math.max(0, endPercent - startPercent) + '%'; // Zapobiegaj ujemnej szerokości
-      timeDisplay.textContent = `Start: ${formatTime(startTime)} | End: ${formatTime(endTime)} | Duration: ${formatTime(Math.max(0, endTime - startTime))}`;
-    }
-
-    trimUIContainer.addEventListener('click', (e) => {
-      if (e.target === trimUIContainer || e.target === timeline) { // Kliknięcie na oś czasu, nie na uchwyty
-        const trimRect = trimUIContainer.getBoundingClientRect();
-        const percent = Math.max(0, Math.min(1, (e.clientX - trimRect.left) / trimRect.width));
-        videoPreview.currentTime = percent * videoDuration;
-      }
-    });
-
-    let isDragging = false, dragHandle = null, dragStartX = 0, initialTime = 0;
-    const onMouseMove = (e) => {
-      if (!isDragging || videoDuration === 0) return;
-      const trimRect = trimUIContainer.getBoundingClientRect();
-      const deltaX = e.clientX - dragStartX;
-      const deltaTime = (deltaX / trimRect.width) * videoDuration;
-
-      if (dragHandle === 'left') {
-        startTime = Math.max(0, Math.min(initialTime + deltaTime, endTime - 0.1)); // Minimalna długość 0.1s
-        videoPreview.currentTime = startTime;
-      } else if (dragHandle === 'right') {
-        endTime = Math.min(videoDuration, Math.max(initialTime + deltaTime, startTime + 0.1));
-        videoPreview.currentTime = endTime;
-      }
-      updateTimeDisplay();
-    };
-    const onMouseUp = () => {
-      if (!isDragging) return;
-      isDragging = false; dragHandle = null;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      trimUIContainer.style.cursor = 'pointer';
-    };
-
-    const makeHandleDraggable = (handleElement, type) => {
-      handleElement.addEventListener('mousedown', (e) => {
-        e.stopPropagation(); // Zapobiegaj kliknięciu na trimUIContainer
-        isDragging = true; dragHandle = type;
-        dragStartX = e.clientX;
-        initialTime = (type === 'left') ? startTime : endTime;
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-        trimUIContainer.style.cursor = 'ew-resize';
-      });
-    };
-
-    makeHandleDraggable(leftHandle, 'left');
-    makeHandleDraggable(rightHandle, 'right');
-
-    trimRegion.appendChild(leftHandle); trimRegion.appendChild(rightHandle);
-    timeline.appendChild(trimRegion); trimUIContainer.appendChild(timeline);
-
-    const trimStatusContainer = document.createElement('div');
-    Object.assign(trimStatusContainer.style, { marginBottom: '15px', padding: '8px', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', fontSize: '12px', color: 'rgba(255, 255, 255, 0.8)' });
-    trimStatusContainer.textContent = 'Adjust handles to set start/end points. Click timeline to preview.';
-
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.display = 'flex'; buttonContainer.style.justifyContent = 'flex-end'; buttonContainer.style.marginTop = '20px'; buttonContainer.style.gap = '10px';
-
-    const createModalButton = (text, classes) => {
-      const btn = document.createElement('button');
-      btn.textContent = text;
-      btn.className = `btn ${classes}`;
-      return btn;
-    };
-
-    const cancelButton = createModalButton('Cancel', 'btn-secondary');
-    const saveButton = createModalButton('Save', 'btn-primary');
-
-    cancelButton.addEventListener('click', () => {
-      dialog.style.opacity = '0';
-      dialog.style.transform = 'scale(0.95)';
-      setTimeout(() => {
-        if (backdrop.parentElement) document.body.removeChild(backdrop);
-      }, 300);
-      document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp);
-    });
-    saveButton.addEventListener('click', () => {
-      const newTrimSettings = { trimEnabled: true, startTime: startTime, endTime: endTime };
-      if (media.settings) {
-        media.settings.trimSettings = newTrimSettings;
-      } else { // Dla starszej struktury lub jako fallback
-        media.trimSettings = newTrimSettings;
-      }
-
-      updateMediaGallery(); saveMediaList();
-      dialog.style.opacity = '0';
-      dialog.style.transform = 'scale(0.95)';
-      setTimeout(() => {
-        if (backdrop.parentElement) document.body.removeChild(backdrop);
-      }, 300);
-      document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp);
-      showNotification('Video trim settings saved', 'success');
-    });
-
-    buttonContainer.appendChild(cancelButton); buttonContainer.appendChild(saveButton);
-    dialog.appendChild(title); dialog.appendChild(videoPreview); dialog.appendChild(trimStatusContainer);
-    trimContainer.appendChild(trimUIContainer); trimContainer.appendChild(timeDisplay); dialog.appendChild(trimContainer);
-    dialog.appendChild(buttonContainer);
-    backdrop.appendChild(dialog); document.body.appendChild(backdrop);
-    updateTimeDisplay();
-  };
-
-
-  const updatePlaylistUI = () => {
-    const playlistContainer = state.dom.playlistContainer;
-    const emptyState = document.getElementById('playlist-empty-state');
-    const controlsContainer = state.dom.playlistControlsContainer;
-
-    if (!playlistContainer || !controlsContainer) { // emptyState może nie istnieć, jeśli playlista nie jest pusta
-      console.error("Required DOM elements for playlist UI not found.");
-      return;
-    }
-
-    // Usuń tylko elementy .playlist-item, zachowaj emptyState
-    Array.from(playlistContainer.querySelectorAll('.playlist-item')).forEach(child => child.remove());
-
-
-    if (state.playlist.items.length === 0) {
-      if(emptyState) emptyState.style.display = 'block';
-      controlsContainer.style.visibility = 'hidden';
-    } else {
-      if(emptyState) emptyState.style.display = 'none';
-      controlsContainer.style.visibility = 'visible';
-
-      state.playlist.items.forEach((mediaId, index) => {
-        const media = state.mediaLibrary.find(m => m.id === mediaId);
-        if (media) playlistContainer.appendChild(createPlaylistItem(media, index));
-        else console.warn(`Media ID ${mediaId} at index ${index} not found in library for playlist UI`);
-      });
-    }
-
-    const shuffleButton = document.getElementById('playlist-shuffle-button');
-    if (shuffleButton) {
-      if (state.playlist.shuffle) shuffleButton.classList.add('active');
-      else shuffleButton.classList.remove('active');
-    }
-
-    const playButton = document.getElementById('playlist-play-button');
-    if (playButton) {
-      playButton.innerHTML = state.playlist.isPlaying ?
-          '<span style="filter: grayscale(100%);">⏸</span> Pause' :
-          '<span style="filter: grayscale(100%);">▶</span> Play All';
-    }
-  };
-
-  const createPlaylistItem = (media, index) => {
-    const item = document.createElement('div');
-    item.className = 'playlist-item';
-    item.dataset.id = media.id; item.dataset.index = index;
-    if (index === state.playlist.currentIndex) item.classList.add('current');
-
-    item.draggable = true;
-    // Eventy drag & drop dla reorderowania wewnątrz playlisty
-    item.addEventListener('dragstart', function(e) {
-      e.dataTransfer.setData('application/json', JSON.stringify({ type: 'playlist-reorder', id: media.id, index: index }));
-      e.dataTransfer.effectAllowed = 'move';
-      this.classList.add('dragging'); // Wizualny feedback
-      // Ustawienie niestandardowego obrazka przeciągania (opcjonalne)
-      // const dragImage = this.cloneNode(true);
-      // dragImage.style.position = "absolute"; dragImage.style.top = "-1000px"; document.body.appendChild(dragImage);
-      // e.dataTransfer.setDragImage(dragImage, 20, 20);
-      // setTimeout(() => document.body.removeChild(dragImage),0);
-    });
-    item.addEventListener('dragend', function() {
-      this.classList.remove('dragging');
-      // Usuń klasy 'drag-over- ऊपर/नीचे' ze wszystkich elementów
-      document.querySelectorAll('.playlist-item.drag-over-top, .playlist-item.drag-over-bottom').forEach(i => {
-        i.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-    });
-    item.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const rect = this.getBoundingClientRect();
-      const isOverTopHalf = e.clientY < rect.top + rect.height / 2;
-      document.querySelectorAll('.playlist-item.drag-over-top, .playlist-item.drag-over-bottom').forEach(i => {
-        i.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-      if (isOverTopHalf) {
-        this.classList.add('drag-over-top');
-      } else {
-        this.classList.add('drag-over-bottom');
-      }
-    });
-    item.addEventListener('dragleave', function() {
-      this.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-    item.addEventListener('drop', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      this.classList.remove('drag-over-top', 'drag-over-bottom');
-      try {
-        const dataText = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
-        if (!dataText) return;
-
-        let droppedData;
-        try {
-          droppedData = JSON.parse(dataText);
-        } catch (err) {
-          // Jeśli nie JSON, to prawdopodobnie ID z biblioteki mediów
-          const mediaId = dataText;
-          const targetIndex = parseInt(this.dataset.index);
-          const rect = this.getBoundingClientRect();
-          const isDroppedOnTopHalf = e.clientY < rect.top + rect.height / 2;
-          const insertAtIndex = isDroppedOnTopHalf ? targetIndex : targetIndex + 1;
-
-          addToPlaylist(mediaId, insertAtIndex); // Dodaj na konkretnej pozycji
-          return;
-        }
-
-        if (droppedData && droppedData.type === 'playlist-reorder') {
-          const fromIndex = parseInt(droppedData.index);
-          let toIndex = parseInt(this.dataset.index);
-          if (fromIndex === toIndex) return; // Nie upuszczono na samego siebie w tej samej pozycji
-
-          const rect = this.getBoundingClientRect();
-          const isDroppedOnTopHalf = e.clientY < rect.top + rect.height / 2;
-
-          if (!isDroppedOnTopHalf && fromIndex < toIndex) {
-            // Przesuwanie w dół, upuszczono na dolną połowę elementu docelowego
-            // toIndex pozostaje bez zmian (za elementem docelowym)
-          } else if (isDroppedOnTopHalf && fromIndex > toIndex) {
-            // Przesuwanie w górę, upuszczono na górną połowę elementu docelowego
-            // toIndex pozostaje bez zmian (przed elementem docelowym)
-          } else if (fromIndex < toIndex) { // Przesuwanie w dół
-            toIndex = isDroppedOnTopHalf ? toIndex -1 : toIndex;
-          } else { // Przesuwanie w górę
-            toIndex = isDroppedOnTopHalf ? toIndex : toIndex +1;
-          }
-          if (fromIndex < toIndex) toIndex--; // Korekta dla splice
-
-          reorderPlaylistItem(fromIndex, toIndex);
-        }
-      } catch (err) { console.error('Error during playlist drop handling:', err); }
-    });
-
-
-    const thumbnail = document.createElement('div');
-    thumbnail.className = 'playlist-item-thumbnail';
-    if (media.thumbnail) {
-      thumbnail.style.backgroundImage = `url(${media.thumbnail})`;
-    } else {
-      thumbnail.style.backgroundColor = '#333';
-      thumbnail.textContent = media.type.charAt(0).toUpperCase();
-    }
-    // Wskaźnik przycięcia
-    let isTrimmed = false;
-    if (media.type === 'video') {
-      const trimSettings = media.settings?.trimSettings || media.trimSettings;
-      if (trimSettings && trimSettings.trimEnabled) {
-        // Sprawdź, czy startTime lub endTime różnią się od pełnej długości (wymaga dostępu do duration)
-        // Na razie uproszczone: jeśli trimEnabled jest true
-        isTrimmed = true;
-      }
-    }
-    if (isTrimmed) {
-      const trimIndicator = document.createElement('div');
-      trimIndicator.className = 'playlist-item-trim-indicator';
-      trimIndicator.innerHTML = '<span style="filter: grayscale(100%);">✂️</span>';
-      thumbnail.appendChild(trimIndicator);
-    }
-
-
-    const infoContainer = document.createElement('div');
-    infoContainer.className = 'playlist-item-info';
-    const nameEl = document.createElement('div');
-    nameEl.className = 'playlist-item-name';
-    nameEl.textContent = media.name;
-    infoContainer.appendChild(nameEl);
-
-    const detailsEl = document.createElement('div');
-    detailsEl.className = 'playlist-item-details';
-    let detailsText = `${media.type} · ${formatFileSize(media.size)}`;
-    if (isTrimmed && media.type === 'video') {
-      const trimSettings = media.settings?.trimSettings || media.trimSettings;
-      // Aby pokazać czas trwania przycięcia, potrzebujemy videoDuration, co nie jest łatwo dostępne tutaj.
-      // Można by przechowywać duration w obiekcie media po pierwszym załadowaniu.
-      // Na razie:
-      detailsText += ` · Trimmed`;
-      if (trimSettings.startTime !== undefined && trimSettings.endTime !== undefined) {
-        const duration = trimSettings.endTime - trimSettings.startTime;
-        if (duration > 0) {
-          detailsText += ` (${formatTimeSimple(duration)})`;
-        }
-      }
-    }
-    detailsEl.textContent = detailsText;
-    infoContainer.appendChild(detailsEl);
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-icon btn-danger playlist-item-delete';
-    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
-    deleteBtn.setAttribute('aria-label', 'Remove from playlist');
-
-    // Odtwarzanie po kliknięciu na element playlisty
-    item.addEventListener('click', function(e) {
-      if (e.target === deleteBtn || deleteBtn.contains(e.target)) return; // Nie odtwarzaj, jeśli kliknięto przycisk usuwania
-      if (state.playlist.isPlaying && state.playlist.currentIndex === index) {
-        // Jeśli kliknięto na aktualnie odtwarzany element, można by zaimplementować pauzę/wznowienie
-        // pausePlaylist(); lub playPlaylist() w zależności od stanu
-        return;
-      }
-      state.playlist.currentIndex = index;
-      playPlaylist(); // Rozpoczyna odtwarzanie od tego elementu
-    });
-    deleteBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      removeFromPlaylist(index);
-    });
-
-    item.appendChild(thumbnail);
-    item.appendChild(infoContainer);
-    item.appendChild(deleteBtn);
-
-    // Wskaźnik odtwarzania
-    if (index === state.playlist.currentIndex && state.playlist.isPlaying) {
-      const playingIndicator = document.createElement('div');
-      playingIndicator.className = 'playlist-item-playing-indicator';
-      playingIndicator.innerHTML = '<span style="filter: grayscale(100%);">▶</span>';
-      // Można dodać do thumbnail lub item
-      thumbnail.appendChild(playingIndicator); // Dodajemy do miniatury
-    }
-
-    return item;
+    // Zwróć funkcję aktualizacji wyświetlania czasu, aby można było jej użyć w innych miejscach
+    return { updateTimeDisplay };
   };
 
   // PLAYLIST DRAG & DROP HANDLERS
@@ -1049,20 +1273,29 @@ const MediaModule = (() => {
     } else {
       e.dataTransfer.dropEffect = 'none';
     }
-    // Wizualny feedback na kontenerze playlisty
-    // state.dom.playlistContainer.classList.add('drag-over-active');
   };
 
   const handlePlaylistDrop = (e) => {
     e.preventDefault();
-    // state.dom.playlistContainer.classList.remove('drag-over-active');
     e.currentTarget.style.backgroundColor = ''; // Usuń inline styl
 
     try {
       const jsonDataText = e.dataTransfer.getData('application/json');
-      if (jsonDataText) { // Próba odczytania jako JSON (dla reorderowania)
+      if (jsonDataText) { // Próba odczytania jako JSON (dla reorderowania lub wielu elementów)
         const jsonData = JSON.parse(jsonDataText);
-        if (jsonData && jsonData.type === 'playlist-reorder') {
+
+        if (jsonData && jsonData.type === 'multiple-media') {
+          // Dodaj wiele elementów do playlisty
+          const { ids } = jsonData;
+          if (Array.isArray(ids) && ids.length > 0) {
+            ids.forEach(id => {
+              addToPlaylist(id, state.playlist.items.length); // Dodaj każdy na końcu
+            });
+            showNotification(`Added ${ids.length} items to playlist`, 'success');
+          }
+          return;
+        }
+        else if (jsonData && jsonData.type === 'playlist-reorder') {
           // Jeśli upuszczono na pusty obszar playlisty (nie na inny element)
           // Przesuń na koniec playlisty
           const fromIndex = parseInt(jsonData.index);
@@ -1088,7 +1321,6 @@ const MediaModule = (() => {
     }
   };
 
-
   // PLAYLIST MANAGEMENT
   const addToPlaylist = (mediaId, insertAtIndex = -1) => {
     const media = state.mediaLibrary.find(m => m.id === mediaId);
@@ -1096,10 +1328,6 @@ const MediaModule = (() => {
       console.error(`Cannot add media ID ${mediaId} to playlist - not found in library`);
       return;
     }
-    // Zapobiegaj dodawaniu duplikatów (opcjonalne, można pozwolić na duplikaty)
-    // if (state.playlist.items.includes(mediaId)) {
-    //   showNotification(`Media ${media.name} is already in the playlist. Duplicates allowed.`, 'info');
-    // }
 
     const wasEmpty = state.playlist.items.length === 0;
 
@@ -1113,12 +1341,10 @@ const MediaModule = (() => {
       }
     }
 
-
     if (wasEmpty && state.playlist.items.length > 0) {
       state.playlist.currentIndex = 0;
-      // Można opóźnić automatyczne odtwarzanie lub usunąć je całkowicie
-      // setTimeout(() => playPlaylist(), 50);
     }
+
     updatePlaylistUI();
     saveMediaList();
     showNotification(`Added to playlist: ${media.name}`, 'success');
@@ -1155,8 +1381,8 @@ const MediaModule = (() => {
       // Jeśli currentIndex był na usuniętym elemencie, a playlista nie grała,
       // currentIndex może teraz wskazywać na element "poza" lub być -1 jeśli playlista pusta
       if (state.playlist.items.length === 0) state.playlist.currentIndex = -1;
-
     }
+
     updatePlaylistUI();
     saveMediaList();
     if (media) showNotification(`Removed from playlist: ${media.name}`, 'info');
@@ -1209,10 +1435,8 @@ const MediaModule = (() => {
   const clearPlaylist = () => {
     try {
       stopPlaylist(); // Zatrzymaj odtwarzanie i wyczyść wyświetlacz
-      // clearMediaDisplay(); // stopPlaylist już to robi
       state.playlist.items = [];
       state.playlist.currentIndex = -1;
-      // state.playlist.isPlaying = false; // stopPlaylist już to robi
       clearPlaybackTimers();
       updatePlaylistUI();
       saveMediaList();
@@ -1236,6 +1460,10 @@ const MediaModule = (() => {
       state.playlist.isPlaying = !loopSingle; // Tylko jeśli to część playlisty (nawet jednoelementowej)
       if (loopSingle) {
         state.playlist.currentIndex = -1; // Wskazuje, że nie gramy z playlisty
+        // Dodaj podświetlenie do klikniętego elementu w bibliotece
+        updateActiveHighlight(media.id, 'library');
+      } else {
+        updateActiveHighlight(null); // Usuń wszystkie podświetlenia (będzie dodane w playMediaByIndex)
       }
       updatePlaylistUI(); // Aby odznaczyć poprzedni element playlisty, jeśli był
     }
@@ -1310,7 +1538,6 @@ const MediaModule = (() => {
     }
     return element;
   };
-
 
   const playPlaylist = () => {
     if (state.playlist.items.length === 0) {
@@ -1394,6 +1621,10 @@ const MediaModule = (() => {
         element.load(); // Upewnij się, że wideo jest ładowane (szczególnie po zmianie src)
         element.play().catch(e => console.warn("Autoplay prevented for video:", media.name, e));
       }
+
+      // Aktualizuj podświetlenie aktywnego elementu w playliście
+      updateActiveHighlight(media.id, 'playlist');
+
       updatePlaylistUI(); // Aktualizuj UI, aby podświetlić bieżący element
     } else {
       // Jeśli nie udało się stworzyć elementu, spróbuj następny
@@ -1433,7 +1664,6 @@ const MediaModule = (() => {
     // Użyj małego opóźnienia przed zresetowaniem flagi, aby uniknąć problemów z szybkimi przejściami
     setTimeout(() => { state.playlist.advancingInProgress = false; }, 100);
   };
-
 
   const clearPlaybackTimers = () => { if (state.playlist.playbackTimer) { clearTimeout(state.playlist.playbackTimer); state.playlist.playbackTimer = null; } };
   const toggleShuffle = () => { state.playlist.shuffle = !state.playlist.shuffle; updatePlaylistUI(); showNotification(state.playlist.shuffle ? 'Shuffle mode: On' : 'Shuffle mode: Off', 'info'); };
@@ -1513,7 +1743,6 @@ const MediaModule = (() => {
       state.playlist.currentIndex = state.playlist.items.length - 1;
     }
 
-
     // Jeśli aktualnie wyświetlany (pojedynczo) element został usunięty
     const currentMediaElement = state.dom.mediaContainer.querySelector('img, video');
     if (currentMediaElement && currentMediaElement.src === mediaToDelete.url) {
@@ -1521,7 +1750,6 @@ const MediaModule = (() => {
       // Jeśli playlista nie grała, a usunięto pojedynczy element, nie ma potrzeby nic więcej robić
       // Jeśli playlista grała, a usunięty element nie był z playlisty, to playlista powinna grać dalej (jeśli była aktywna)
     }
-
 
     if (state.mediaLibrary.length === 0) {
       // Jeśli biblioteka jest pusta, wyczyść też playlistę
@@ -1535,7 +1763,256 @@ const MediaModule = (() => {
     showNotification(`Removed: ${mediaToDelete.name}`, 'info');
   };
 
-  // STORAGE
+  // PLAYLIST UI UPDATE
+  const updatePlaylistUI = () => {
+    const playlistContainer = state.dom.playlistContainer;
+    const emptyState = document.getElementById('playlist-empty-state');
+    const controlsContainer = state.dom.playlistControlsContainer;
+
+    if (!playlistContainer || !controlsContainer) {
+      console.error("Required DOM elements for playlist UI not found.");
+      return;
+    }
+
+    // Usuń tylko elementy .playlist-item, zachowaj emptyState
+    Array.from(playlistContainer.querySelectorAll('.playlist-item')).forEach(child => child.remove());
+
+    if (state.playlist.items.length === 0) {
+      if(emptyState) emptyState.style.display = 'block';
+      controlsContainer.style.visibility = 'hidden';
+    } else {
+      if(emptyState) emptyState.style.display = 'none';
+      controlsContainer.style.visibility = 'visible';
+
+      state.playlist.items.forEach((mediaId, index) => {
+        const media = state.mediaLibrary.find(m => m.id === mediaId);
+        if (media) playlistContainer.appendChild(createPlaylistItem(media, index));
+        else console.warn(`Media ID ${mediaId} at index ${index} not found in library for playlist UI`);
+      });
+    }
+
+    const shuffleButton = document.getElementById('playlist-shuffle-button');
+    if (shuffleButton) {
+      if (state.playlist.shuffle) shuffleButton.classList.add('active');
+      else shuffleButton.classList.remove('active');
+    }
+
+    const playButton = document.getElementById('playlist-play-button');
+    if (playButton) {
+      playButton.innerHTML = state.playlist.isPlaying ?
+          '<span style="filter: grayscale(100%);">⏸</span> Pause' :
+          '<span style="filter: grayscale(100%);">▶</span> Play All';
+    }
+
+    // Odśwież podświetlenie aktywnego elementu playlisty (jeśli istnieje)
+    if (state.activeHighlight.mediaId && state.activeHighlight.sourceType === 'playlist') {
+      updateActiveHighlight(state.activeHighlight.mediaId, 'playlist');
+    }
+  };
+
+  // CREATE PLAYLIST ITEM
+  const createPlaylistItem = (media, index) => {
+    const item = document.createElement('div');
+    item.className = 'playlist-item';
+    item.dataset.id = media.id;
+    item.dataset.index = index;
+    if (index === state.playlist.currentIndex) item.classList.add('current');
+
+    // Element do podświetlenia aktywnego (obecnie odtwarzanego) klipu
+    const highlightRing = document.createElement('div');
+    highlightRing.className = 'media-active-highlight-ring';
+    item.appendChild(highlightRing);
+
+    item.draggable = true;
+    // Eventy drag & drop dla reorderowania wewnątrz playlisty
+    item.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('application/json', JSON.stringify({ type: 'playlist-reorder', id: media.id, index: index }));
+      e.dataTransfer.effectAllowed = 'move';
+      this.classList.add('dragging'); // Wizualny feedback
+    });
+    item.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      // Usuń klasy 'drag-over- ऊपर/नीचे' ze wszystkich elementów
+      document.querySelectorAll('.playlist-item.drag-over-top, .playlist-item.drag-over-bottom').forEach(i => {
+        i.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+    });
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = this.getBoundingClientRect();
+      const isOverTopHalf = e.clientY < rect.top + rect.height / 2;
+      document.querySelectorAll('.playlist-item.drag-over-top, .playlist-item.drag-over-bottom').forEach(i => {
+        i.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      if (isOverTopHalf) {
+        this.classList.add('drag-over-top');
+      } else {
+        this.classList
+            .add('drag-over-bottom');
+      }
+    });
+    item.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      this.classList.remove('drag-over-top', 'drag-over-bottom');
+      try {
+        const dataText = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
+        if (!dataText) return;
+
+        let droppedData;
+        try {
+          droppedData = JSON.parse(dataText);
+        } catch (err) {
+          // Jeśli nie JSON, to prawdopodobnie ID z biblioteki mediów
+          const mediaId = dataText;
+          const targetIndex = parseInt(this.dataset.index);
+          const rect = this.getBoundingClientRect();
+          const isDroppedOnTopHalf = e.clientY < rect.top + rect.height / 2;
+          const insertAtIndex = isDroppedOnTopHalf ? targetIndex : targetIndex + 1;
+
+          addToPlaylist(mediaId, insertAtIndex); // Dodaj na konkretnej pozycji
+          return;
+        }
+
+        if (droppedData && droppedData.type === 'playlist-reorder') {
+          const fromIndex = parseInt(droppedData.index);
+          let toIndex = parseInt(this.dataset.index);
+          if (fromIndex === toIndex) return; // Nie upuszczono na samego siebie w tej samej pozycji
+
+          const rect = this.getBoundingClientRect();
+          const isDroppedOnTopHalf = e.clientY < rect.top + rect.height / 2;
+
+          if (!isDroppedOnTopHalf && fromIndex < toIndex) {
+            // Przesuwanie w dół, upuszczono na dolną połowę elementu docelowego
+            // toIndex pozostaje bez zmian (za elementem docelowym)
+          } else if (isDroppedOnTopHalf && fromIndex > toIndex) {
+            // Przesuwanie w górę, upuszczono na górną połowę elementu docelowego
+            // toIndex pozostaje bez zmian (przed elementem docelowym)
+          } else if (fromIndex < toIndex) { // Przesuwanie w dół
+            toIndex = isDroppedOnTopHalf ? toIndex -1 : toIndex;
+          } else { // Przesuwanie w górę
+            toIndex = isDroppedOnTopHalf ? toIndex : toIndex +1;
+          }
+          if (fromIndex < toIndex) toIndex--; // Korekta dla splice
+
+          reorderPlaylistItem(fromIndex, toIndex);
+        } else if (droppedData && droppedData.type === 'multiple-media') {
+          // Obsługa upuszczenia wielu zaznaczonych elementów
+          const { ids } = droppedData;
+          if (Array.isArray(ids) && ids.length > 0) {
+            const targetIndex = parseInt(this.dataset.index);
+            const rect = this.getBoundingClientRect();
+            const isDroppedOnTopHalf = e.clientY < rect.top + rect.height / 2;
+            const insertAtIndex = isDroppedOnTopHalf ? targetIndex : targetIndex + 1;
+
+            // Dodaj wszystkie elementy, zaczynając od określonego indeksu
+            ids.forEach((id, i) => {
+              addToPlaylist(id, insertAtIndex + i);
+            });
+
+            showNotification(`Added ${ids.length} items to playlist`, 'success');
+          }
+        }
+      } catch (err) { console.error('Error during playlist drop handling:', err); }
+    });
+
+
+    const thumbnail = document.createElement('div');
+    thumbnail.className = 'playlist-item-thumbnail';
+    if (media.thumbnail) {
+      thumbnail.style.backgroundImage = `url(${media.thumbnail})`;
+    } else {
+      thumbnail.style.backgroundColor = '#333';
+      thumbnail.textContent = media.type.charAt(0).toUpperCase();
+    }
+    // Wskaźnik przycięcia
+    let isTrimmed = false;
+    if (media.type === 'video') {
+      const trimSettings = media.settings?.trimSettings || media.trimSettings;
+      if (trimSettings && trimSettings.trimEnabled) {
+        // Sprawdź, czy startTime lub endTime różnią się od pełnej długości (wymaga dostępu do duration)
+        // Na razie uproszczone: jeśli trimEnabled jest true
+        isTrimmed = true;
+      }
+    }
+    if (isTrimmed) {
+      const trimIndicator = document.createElement('div');
+      trimIndicator.className = 'playlist-item-trim-indicator';
+      trimIndicator.innerHTML = '<span style="filter: grayscale(100%);">✂️</span>';
+      thumbnail.appendChild(trimIndicator);
+    }
+
+
+    const infoContainer = document.createElement('div');
+    infoContainer.className = 'playlist-item-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'playlist-item-name';
+    nameEl.textContent = media.name;
+    infoContainer.appendChild(nameEl);
+
+    const detailsEl = document.createElement('div');
+    detailsEl.className = 'playlist-item-details';
+    let detailsText = `${media.type} · ${formatFileSize(media.size)}`;
+    if (isTrimmed && media.type === 'video') {
+      const trimSettings = media.settings?.trimSettings || media.trimSettings;
+      // Aby pokazać czas trwania przycięcia, potrzebujemy videoDuration, co nie jest łatwo dostępne tutaj.
+      // Można by przechowywać duration w obiekcie media po pierwszym załadowaniu.
+      // Na razie:
+      detailsText += ` · Trimmed`;
+      if (trimSettings.startTime !== undefined && trimSettings.endTime !== undefined) {
+        const duration = trimSettings.endTime - trimSettings.startTime;
+        if (duration > 0) {
+          detailsText += ` (${formatTimeSimple(duration)})`;
+        }
+      }
+    }
+    detailsEl.textContent = detailsText;
+    infoContainer.appendChild(detailsEl);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-icon btn-danger playlist-item-delete';
+    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+    deleteBtn.setAttribute('aria-label', 'Remove from playlist');
+
+    // Odtwarzanie po kliknięciu na element playlisty
+    item.addEventListener('click', function(e) {
+      if (e.target === deleteBtn || deleteBtn.contains(e.target)) return; // Nie odtwarzaj, jeśli kliknięto przycisk usuwania
+      if (state.playlist.isPlaying && state.playlist.currentIndex === index) {
+        // Jeśli kliknięto na aktualnie odtwarzany element, można by zaimplementować pauzę/wznowienie
+        pausePlaylist();
+        return;
+      }
+      state.playlist.currentIndex = index;
+      playPlaylist(); // Rozpoczyna odtwarzanie od tego elementu
+
+      // Aktualizuj podświetlenie aktywnego elementu na playliście
+      updateActiveHighlight(media.id, 'playlist');
+    });
+    deleteBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      removeFromPlaylist(index);
+    });
+
+    item.appendChild(thumbnail);
+    item.appendChild(infoContainer);
+    item.appendChild(deleteBtn);
+
+    // Wskaźnik odtwarzania
+    if (index === state.playlist.currentIndex && state.playlist.isPlaying) {
+      const playingIndicator = document.createElement('div');
+      playingIndicator.className = 'playlist-item-playing-indicator';
+      playingIndicator.innerHTML = '<span style="filter: grayscale(100%);">▶</span>';
+      // Można dodać do thumbnail lub item
+      thumbnail.appendChild(playingIndicator); // Dodajemy do miniatury
+    }
+
+    return item;
+  };
+
+  // STORAGE FUNCTIONS
   const saveMediaList = () => {
     try {
       // Przechowuj tylko metadane, bez URL (bo ObjectURL są tymczasowe)
@@ -1598,21 +2075,108 @@ const MediaModule = (() => {
     }
   };
 
-
   // UTILITY FUNCTIONS
-  const formatFileSize = (bytes) => { if (bytes < 1024) return bytes + ' B'; if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'; if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'; return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'; };
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  };
+
   const formatTimeSimple = (totalSeconds) => {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = Math.floor(totalSeconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
-  const showNotification = (message, type) => { if (typeof WallpaperApp !== 'undefined' && WallpaperApp.UI && typeof WallpaperApp.UI.showNotification === 'function') WallpaperApp.UI.showNotification(message, type); else console.log(`[${type ? type.toUpperCase() : 'INFO'}] ${message}`); };
+
+  // Funkcja do wyświetlania powiadomień - używamy istniejącej funkcji jeśli jest dostępna,
+  // ale upewniamy się, że działa nawet jeśli nie mamy dostępu do globalnego obiektu WallpaperApp
+  const showNotification = (message, type) => {
+    if (typeof WallpaperApp !== 'undefined' && WallpaperApp.UI && typeof WallpaperApp.UI.showNotification === 'function') {
+      WallpaperApp.UI.showNotification(message, type);
+    } else {
+      console.log(`[${type ? type.toUpperCase() : 'INFO'}] ${message}`);
+      // Implementacja własnego tooltipa jeśli nie ma globalnej funkcji
+      const body = document.querySelector('body');
+      if (body) {
+        const notification = document.createElement('div');
+        notification.className = `custom-notification ${type || 'info'}`;
+        notification.textContent = message;
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        notification.style.color = 'white';
+        notification.style.padding = '10px 15px';
+        notification.style.borderRadius = '4px';
+        notification.style.zIndex = '9999';
+        notification.style.maxWidth = '300px';
+        notification.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
+        notification.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(20px)';
+
+        if (type === 'success') {
+          notification.style.borderLeft = '4px solid #4caf50';
+        } else if (type === 'warning') {
+          notification.style.borderLeft = '4px solid #ff9800';
+        } else if (type === 'error') {
+          notification.style.borderLeft = '4px solid #f44336';
+        } else {
+          notification.style.borderLeft = '4px solid #2196f3';
+        }
+
+        body.appendChild(notification);
+
+        // Dajmy chwilę na dodanie do DOM, zanim animujemy
+        setTimeout(() => {
+          notification.style.opacity = '1';
+          notification.style.transform = 'translateX(0)';
+        }, 10);
+
+        // Automatycznie usuwamy po 3 sekundach
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          notification.style.transform = 'translateX(20px)';
+          setTimeout(() => {
+            if (notification.parentNode) notification.parentNode.removeChild(notification);
+          }, 300);
+        }, 3000);
+      }
+    }
+  };
+
+  // Funkcja zamykająca submenu
+  const closeAllSubmenus = () => {
+    // Znajdź wszystkie aktywne submenu
+    const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
+    const submenuWrapper = document.querySelector('.submenu-wrapper');
+
+    if (submenuWrapper && submenuWrapper.classList.contains('active')) {
+      activeSubmenus.forEach(submenu => {
+        submenu.classList.remove('active');
+      });
+      submenuWrapper.classList.remove('active');
+    }
+
+    // Usuń klasę 'selected' z elementów menu
+    document.querySelectorAll('.category-item').forEach(item => {
+      item.classList.remove('selected');
+    });
+  };
 
   // Public API
   return {
     init,
-    // Można tu wyeksportować inne funkcje, jeśli będą potrzebne z zewnątrz
-    // np. getCurrentPlaylist: () => state.playlist,
+    // Eksportujemy dodatkowe funkcje, które mogą być przydatne z zewnątrz
+    getCurrentPlaylist: () => state.playlist,
+    getMediaLibrary: () => state.mediaLibrary,
+    openMediaSettings: (mediaId) => {
+      const media = state.mediaLibrary.find(m => m.id === mediaId);
+      if (media) {
+        openMediaSettingsDialog(media);
+      }
+    }
   };
 })();
 
