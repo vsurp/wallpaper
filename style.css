@@ -215,25 +215,48 @@ div, h1, h2 {
 #main-menu.active { transform: translateX(0); }
 #main-menu.active.acrylic { /* Stosujemy .acrylic bezpośrednio na elemencie */ }
 
-.submenu-wrapper { position: fixed; top: 0; right: var(--menu-width); height: 100vh; width: 0; overflow: hidden; z-index: 101; transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1); pointer-events: none; }
-.submenu-wrapper.active { width: var(--submenu-width); pointer-events: all; right: calc(var(--menu-width) - 1px); }
+.submenu-wrapper {
+  position: fixed;
+  top: 0;
+  right: var(--menu-width);
+  height: 100vh;
+  width: 0; /* Start with zero width */
+  overflow: hidden; /* This will clip the .slide-submenu */
+  z-index: 101;
+  transition: width var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
+  pointer-events: none;
+}
+.submenu-wrapper.active {
+  width: var(--submenu-width); /* Expand to full submenu width */
+  pointer-events: all;
+  right: calc(var(--menu-width) - 1px);
+}
 
 .slide-submenu {
   position: absolute;
   top: 0;
   left: 0;
   height: 100vh;
-  width: var(--submenu-width);
+  width: var(--submenu-width); /* MODIFIED: Fixed width for the submenu itself */
   background-color: rgba(15, 15, 15, 0.6);
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
+  overflow: hidden; /* Content within the submenu should not overflow this submenu */
   border-left: 2px solid rgba(255, 255, 255, 0.1);
   opacity: 0;
   visibility: hidden;
-  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
-  pointer-events: all;
+  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
+  visibility 0s linear var(--menu-animation-time);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
 }
-.slide-submenu.active { display: block; opacity: 1; visibility: visible; }
+.slide-submenu.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+  transition: opacity var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1),
+  visibility 0s linear 0s;
+}
 .slide-submenu.active.acrylic { /* Stosujemy .acrylic bezpośrednio na elemencie */ }
 
 
@@ -243,38 +266,37 @@ div, h1, h2 {
 
 .menu-hover-area { position: fixed; top: 0; right: 0; width: 20%; height: 100%; z-index: 98; pointer-events: auto; }
 
-.menu-header { height: var(--header-height); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.menu-header { height: var(--header-height); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); flex-shrink: 0; }
 .menu-header h1 { font-size: 1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
-.menu-content { flex: 1; overflow-y: auto; /* Zmienione z hidden na auto */ padding: 1rem; }
+.menu-content { flex: 1; overflow-y: auto; padding: 1rem; }
 .menu-section { margin-bottom: 2rem; }
 .menu-section h2 { font-size: 3rem; text-transform: uppercase; font-weight: 900; color: transparent; -webkit-text-stroke: 1px var(--text-color); letter-spacing: 0.05em; line-height: 1; margin-bottom: 1rem; }
 .menu-section h2:hover { color: var(--text-color); text-shadow: 0 0 10px rgba(255, 255, 255, 0.2); }
 .section-content { background-color: rgba(0, 0, 0, 0.2); border-radius: 5px; padding: 1rem; }
 .section-content.acrylic::before { border-radius: 5px; }
 
-.menu-footer { height: var(--footer-height); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; }
+.menu-footer { height: var(--footer-height); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; flex-shrink: 0; }
 .version-info { opacity: 0.7; }
 
-/* Ujednolicone style dla elementów menu (działających jak przyciski) */
 .category-item, .menu-item, .submenu-item {
   display: block;
   padding: 1rem;
   margin-bottom: 0.5rem;
-  font-size: 1.2rem; /* Zachowano specyficzny rozmiar dla menu */
+  font-size: 1.2rem;
   text-transform: uppercase;
-  font-weight: bold; /* Zachowano specyficzną grubość dla menu */
+  font-weight: bold;
   letter-spacing: 0.05em;
   background-color: transparent;
   border: none;
-  border-radius: var(--btn-border-radius); /* Użycie zmiennej */
+  border-radius: var(--btn-border-radius);
   transition: background-color 0.2s, color 0.2s;
   cursor: pointer;
   position: relative;
   overflow: hidden;
   color: var(--text-color);
   user-select: none;
-  text-align: left; /* Domyślne dla blokowych, ale dla pewności */
+  text-align: left;
 }
 
 .category-item:hover, .menu-item:hover, .submenu-item:hover {
@@ -285,7 +307,6 @@ div, h1, h2 {
 .menu-item.selected, .category-item.selected, .submenu-item.active {
   background-color: rgba(255, 255, 255, 0.15);
   color: var(--primary-color);
-  /* border-left: 3px solid var(--primary-color); Można przywrócić jeśli potrzebne */
 }
 .category-item.acrylic::before, .menu-item.acrylic::before, .submenu-item.acrylic::before { border-radius: var(--btn-border-radius); }
 
@@ -295,7 +316,6 @@ div, h1, h2 {
 
 /* ========== 8. UI COMPONENTS ========== */
 
-/* Reset dla elementu button */
 button,
 input[type="button"],
 input[type="submit"],
@@ -308,13 +328,12 @@ input[type="reset"] {
   font: inherit;
   text-align: inherit;
   cursor: pointer;
-  outline: none; /* Można dodać :focus-visible dla dostępności */
-  -webkit-appearance: none; /* Usuwa domyślne style iOS */
-  -moz-appearance: none; /* Usuwa domyślne style Firefox */
-  appearance: none; /* Usuwa domyślne style */
+  outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
-/* Bazowa klasa dla przycisków */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -328,10 +347,10 @@ input[type="reset"] {
   border-radius: var(--btn-border-radius);
   text-transform: var(--btn-text-transform);
   letter-spacing: var(--btn-letter-spacing);
-  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, opacity 0.2s ease;
   user-select: none;
-  position: relative; /* Dla ::before w .btn-acrylic */
-  overflow: hidden; /* Aby ::before nie wychodził poza przycisk */
+  position: relative;
+  overflow: hidden;
 }
 
 .btn:hover {
@@ -347,7 +366,7 @@ input[type="reset"] {
 
 .btn:disabled,
 .btn.disabled {
-  opacity: 0.5 !important; /* Ważne, aby nadpisać inne style */
+  opacity: 0.5 !important;
   cursor: not-allowed !important;
   background-color: rgba(255, 255, 255, 0.05) !important;
   box-shadow: none !important;
@@ -355,17 +374,15 @@ input[type="reset"] {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Warianty przycisków */
 .btn-primary {
   background-color: var(--primary-color);
-  color: var(--background-color); /* Lub inny kontrastujący kolor, np. #000000 */
+  color: var(--background-color);
   border-color: var(--primary-color);
 }
 .btn-primary:hover { background-color: color-mix(in srgb, var(--primary-color) 90%, black); }
 .btn-primary:active { background-color: color-mix(in srgb, var(--primary-color) 80%, black); }
 
 .btn-secondary {
-  /* Style już zdefiniowane przez .btn */
 }
 
 .btn-danger {
@@ -387,56 +404,52 @@ input[type="reset"] {
   background: transparent;
   border: none;
   color: var(--text-color);
-  padding: 8px; /* Mniejszy padding dla przycisków-ikon */
-  border-radius: 50%; /* Okrągłe tło przy najechaniu */
+  padding: 8px;
+  border-radius: 50%;
   line-height: 1;
-  font-size: 1.5rem; /* Domyślna wielkość dla ikon typu 'X' */
+  font-size: 1.5rem;
+  transition: color 0.2s ease, transform 0.1s ease;
 }
 .btn-icon:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: transparent;
   color: var(--primary-color);
 }
+.btn-icon:active {
+  transform: translateY(1px);
+}
+
 .btn-icon svg {
   width: 1em;
   height: 1em;
   fill: currentColor;
 }
 
-/* Przycisk z efektem Acrylic */
 .btn-acrylic {
-  /* Można połączyć z klasą .acrylic lub skopiować jej właściwości */
   backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
   -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation));
-  background-color: rgba(255, 255, 255, 0.05); /* Bardziej subtelne tło dla efektu akrylu */
+  background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.btn-acrylic::before { /* Dziedziczy z .acrylic::before dzięki position: relative na .btn */
+.btn-acrylic::before {
   border-radius: inherit;
 }
 .btn-acrylic:hover { background-color: rgba(255, 255, 255, 0.1); }
 
-/* Ikony w przyciskach */
-.btn svg, .btn span[class*="icon-"] /* Dla klas ikon np. z font-awesome */ {
+.btn svg, .btn span[class*="icon-"] {
   margin-right: var(--btn-icon-spacing);
-  width: 1em; /* Dopasowanie wielkości ikony do tekstu */
+  width: 1em;
   height: 1em;
-  fill: currentColor; /* Aby ikona przyjmowała kolor tekstu przycisku */
+  fill: currentColor;
 }
-.btn svg:last-child, .btn span[class*="icon-"]:last-child { /* Jeśli ikona jest jedynym dzieckiem lub ostatnia */
+.btn svg:last-child, .btn span[class*="icon-"]:last-child {
   margin-right: 0;
 }
-.btn span + svg, .btn svg + span { /* Odstęp gdy tekst i ikona są obok siebie */
-  /* margin-left: var(--btn-icon-spacing); - jeśli ikona po prawej */
-}
 
 
-/* Tooltip */
 .tooltip { position: absolute; background-color: rgba(0, 0, 0, 0.8); color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; max-width: 300px; z-index: 1000; opacity: 0; transform: translateY(10px); transition: opacity 0.3s cubic-bezier(0.43, 0, 0.15, 1), transform 0.3s cubic-bezier(0.43, 0, 0.15, 1); pointer-events: none; }
 .tooltip.show { opacity: 1; transform: translateY(0); }
 
-/* Notification Containers */
-#notification-container { position: fixed; top: 10px; right: 10px; z-index: 1050; visibility: hidden; /* Zmieniono na hidden, JS będzie pokazywał */ }
-/* Basic Notification */
+#notification-container { position: fixed; top: 10px; right: 10px; z-index: 1050; visibility: hidden; }
 .notification { position: relative; background-color: var(--menu-background); color: white; margin: 10px; padding: 15px 20px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); max-width: 350px; transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.43, 0, 0.15, 1); }
 .notification.show { transform: translateX(0); }
 .notification.info { border-left: 4px solid var(--info-color); }
@@ -444,7 +457,6 @@ input[type="reset"] {
 .notification.warning { border-left: 4px solid var(--warning-color); }
 .notification.success { border-left: 4px solid var(--success-color); }
 
-/* System Notification */
 .system-notification { position: relative; background-color: var(--menu-background); border-left: 4px solid var(--primary-color); margin: 10px; width: 320px; border-radius: 4px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); opacity: 0; transform: translateX(50px); transition: opacity 0.3s, transform 0.3s; overflow: hidden; }
 .system-notification.show { opacity: 1; transform: translateX(0); }
 .system-notification.error { border-left-color: var(--error-color); }
@@ -458,41 +470,27 @@ input[type="reset"] {
 .notification-header { padding: 10px 15px; display: flex; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
 .notification-icon { margin-right: 10px; font-size: 1.2rem; }
 .notification-title { flex-grow: 1; font-weight: 600; }
-/* Zastosowanie .btn-icon do .notification-close */
 .notification-close {
-  /* Usunięto stare style, będzie dziedziczyć z .btn i .btn-icon */
-  font-size: 1.2rem; /* Dostosowanie wielkości ikony dla tego kontekstu */
+  font-size: 1.2rem;
 }
 .notification-content { padding: 10px 15px; }
 .notification-actions { padding-top: 10px; display: flex; gap: 10px; }
-/* Zastosowanie .btn do .notification-action */
 .notification-action {
-  /* Usunięto stare style, będzie dziedziczyć z .btn */
-  /* Można dodać .btn-secondary jeśli pasuje */
-  padding: 5px 10px; /* Mniejszy padding dla akcji w notyfikacji */
+  padding: 5px 10px;
 }
 
-/* Modals */
 #modal-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; z-index: 1100; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
 .modal { background-color: var(--menu-background); border-radius: 5px; max-width: 500px; width: 90%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); }
 .modal-header { padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-.modal-footer { padding: 15px 20px; display: flex; justify-content: flex-end; border-top: 1px solid rgba(255, 255, 255, 0.1); gap: 10px; /* Dodano odstęp między przyciskami */ }
-/* Zastosowanie .btn-icon do .modal-close */
+.modal-footer { padding: 15px 20px; display: flex; justify-content: flex-end; border-top: 1px solid rgba(255, 255, 255, 0.1); gap: 10px; }
 .modal-close {
-  /* Usunięto stare style */
-  font-size: 1.5rem; /* Zachowano wielkość */
-}
-/* Przyciski w stopce modala - teraz używają klas .btn */
-.modal-footer button {
-  /* Usunięto stare, specyficzne style. Klasy .btn, .btn-primary, .btn-secondary będą nadawane w HTML/JS */
+  font-size: 1.5rem;
 }
 
 
-/* Zastosowanie .btn-icon do .menu-close i .submenu-close */
 .menu-close, .submenu-close {
-  /* Usunięto stare style */
-  font-size: 1.8rem; /* Dostosowanie wielkości ikony */
+  font-size: 1.8rem;
 }
 
 
@@ -503,34 +501,15 @@ input[type="reset"] {
 .form-group textarea { resize: vertical; min-height: 80px; }
 .setting-description { font-size: 0.9em; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
 
-/* Common Form Elements */
 input[type="text"], input[type="number"], select, textarea { background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white; padding: 8px 12px; border-radius: 4px; width: 100%; margin-bottom: 10px; }
 input[type="range"] { width: 100%; margin: 10px 0; }
 
-/* Ogólny styl dla <button> tagu, jeśli nie ma klasy .btn - teraz zresetowany na górze */
-/* button {
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: opacity 0.2s cubic-bezier(0.43, 0, 0.15, 1);
-}
-button:hover { opacity: 0.9; }
-button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
 
-/* Stare klasy .primary-btn, .secondary-btn, .danger-btn są teraz zastąpione przez .btn .btn-primary itd. */
-/* .primary-btn { ... } */
-/* .secondary-btn { ... } */
-/* .danger-btn { ... } */
-
-.disabled { /* Ta klasa może być nadal używana dla elementów innych niż <button> */
+.disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Toggle Switch */
 .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 .toggle-switch label { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.2); border-radius: 34px; transition: .4s; }
@@ -544,16 +523,12 @@ button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
 .tutorial-popup { position: absolute; width: 350px; background-color: var(--menu-background); border-radius: 5px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); pointer-events: auto; overflow: hidden; }
 .tutorial-header { padding: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center; }
 .tutorial-title { font-size: 1.2rem; font-weight: 600; margin: 0; }
-/* Zastosowanie .btn-icon do .tutorial-close */
 .tutorial-close {
-  /* Usunięto stare style */
-  font-size: 1.5rem; /* Zachowano wielkość */
+  font-size: 1.5rem;
 }
 .tutorial-content { padding: 15px; line-height: 1.6; }
 .tutorial-footer { padding: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center; }
-/* Zastosowanie .btn do .tutorial-prev, .tutorial-next */
 .tutorial-prev, .tutorial-next {
-  /* Usunięto stare style, będą dziedziczyć z .btn .btn-primary */
 }
 .tutorial-progress { display: flex; gap: 5px; }
 .progress-dot { width: 8px; height: 8px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.3); }
@@ -564,11 +539,9 @@ button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
 #debug-console { position: fixed; bottom: 0; left: 0; width: 100%; height: 30%; background-color: rgba(0, 0, 0, 0.9); border-top: 1px solid rgba(255, 255, 255, 0.2); z-index: 950; display: flex; flex-direction: column; }
 #debug-console.hidden { display: none; }
 .console-header { padding: 5px 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-/* Zastosowanie .btn do przycisków w .console-controls */
 .console-controls button {
-  /* Usunięto stare style, będą dziedziczyć z .btn */
   margin-left: 10px;
-  padding: 4px 8px; /* Mniejszy padding dla tego kontekstu */
+  padding: 4px 8px;
 }
 .console-content { flex: 1; overflow-y: auto; padding: 10px; }
 .log-container { font-family: monospace; font-size: 0.9rem; }
@@ -594,7 +567,7 @@ button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
 .slide-in { animation: slideIn 0.5s forwards; }
 
 /* ========== Enhanced Media UI with Windows 11 Styling ========== */
-#media-gallery, #playlist-container, .menu-content, .slide-submenu .menu-content { overflow-x: hidden; overflow-y: auto; /* Zmienione na auto */ scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; border-radius: 8px !important; }
+#media-gallery, #playlist-container, .menu-content, .slide-submenu .menu-content { overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; border-radius: 8px !important; }
 #media-gallery::-webkit-scrollbar, #playlist-container::-webkit-scrollbar, .menu-content::-webkit-scrollbar, .slide-submenu .menu-content::-webkit-scrollbar { width: 8px; height: 0; }
 #media-gallery::-webkit-scrollbar:horizontal, #playlist-container::-webkit-scrollbar:horizontal, .menu-content::-webkit-scrollbar:horizontal, .slide-submenu .menu-content::-webkit-scrollbar:horizontal { display: none; }
 #media-gallery::-webkit-scrollbar-track, #playlist-container::-webkit-scrollbar-track, .menu-content::-webkit-scrollbar-track, .slide-submenu .menu-content::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
@@ -605,14 +578,14 @@ button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
 #media-gallery:not(:hover)::-webkit-scrollbar-thumb, #playlist-container:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
 
 #media-gallery { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 10px !important; padding: 10px !important; background-color: rgba(0, 0, 0, 0.2) !important; height: 240px !important; }
-#playlist-container { height: 240px !important; /* Dopasowanie do media gallery */ position: relative; /* Dla pozycjonowania #playlist-controls */ padding-bottom: 70px; /* Miejsce na przyciski, dostosuj wg potrzeb */ }
+#playlist-container { height: 240px !important; position: relative; padding-bottom: 70px; }
 .media-thumbnail { width: 100% !important; aspect-ratio: 1 !important; max-width: none !important; justify-self: center !important; }
 #media-gallery, #playlist-container { background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturation)); }
 #media-gallery::before, #playlist-container::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"); opacity: var(--acrylic-noise-opacity); pointer-events: none; z-index: -1; animation: grain 8s steps(10) infinite; border-radius: inherit; }
 
 #playlist-controls {
-  position: absolute; /* Zmieniono z sticky na absolute */
-  bottom: 0; /* Na dole kontenera #playlist-container */
+  position: absolute;
+  bottom: 0;
   left: 0;
   right: 0;
   display: flex;
@@ -624,56 +597,26 @@ button.secondary { background-color: rgba(255, 255, 255, 0.2); } */
   -webkit-backdrop-filter: blur(var(--acrylic-blur));
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 5;
-  /* visibility: hidden; Usunięto, JS będzie kontrolował widoczność przycisków */
 }
 
 #playlist-section {
-  position: relative; /* Potrzebne, jeśli #playlist-controls jest sticky względem tego */
+  position: relative;
   margin-top: 15px;
-  /* padding-bottom: 60px; Usunięto, bo #playlist-container ma teraz padding-bottom */
 }
 
-/* Ujednolicone style dla .playlist-button używające .btn */
 .playlist-button {
-  /* Dziedziczy większość stylów z .btn */
   flex: 1;
-  font-size: 11px; /* Specyficzny rozmiar dla tych przycisków */
-  padding: 8px 10px; /* Mniejszy padding */
-  /* Usunięto background-color, border, color, border-radius, text-transform, letter-spacing, transition - dziedziczone lub z wariantów .btn */
+  font-size: 11px;
+  padding: 8px 10px;
 }
 
-/* Specyficzne warianty dla przycisków playlisty, jeśli potrzebne */
-#playlist-play-button.btn-primary { /* Jeśli ma być primary */
-  /* background-color: rgba(var(--primary-color-rgb), 0.2) !important; */ /* Stary styl - można usunąć jeśli .btn-primary wystarczy */
-  /* border-left: 3px solid var(--primary-color); */ /* Można zachować jako dodatkowy wskaźnik */
-}
-#playlist-play-button.btn-primary:hover {
-  /* background-color: rgba(var(--primary-color-rgb), 0.3) !important; */
-}
-
-#playlist-shuffle-button.active { /* Klasa .active dodawana przez JS */
-  background-color: rgba(255, 255, 255, 0.25) !important; /* Wyraźniejsze zaznaczenie */
+#playlist-shuffle-button.active {
+  background-color: rgba(255, 255, 255, 0.25) !important;
   border-color: var(--primary-color);
-  /* border-left: 3px solid var(--primary-color); */
 }
 
-#playlist-clear-button.btn-danger:hover { /* Jeśli ma być danger */
-  /* background-color: rgba(244, 67, 54, 0.2) !important; */
-  /* border-left: 3px solid var(--error-color); */
-}
-
-.playlist-button span { /* Dla ikon w przyciskach playlisty */
+.playlist-button span {
   margin-right: 6px;
   vertical-align: middle;
-  filter: grayscale(100%); /* Zachowano filtr dla ikon */
+  filter: grayscale(100%);
 }
-
-/* Initially hide the playlist controls - JS will show them if playlist has items */
-/* #playlist-controls {
-  visibility: hidden;
-} */
-/* Make the buttons inside the playlist controls visible (if controls are visible) */
-/* #playlist-controls button {
-  visibility: visible;
-} */
-

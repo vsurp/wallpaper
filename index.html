@@ -19,19 +19,16 @@
             console.log(`Notification container not found. Notification (${type}): ${message}`);
             return;
           }
-          // Upewnij się, że kontener jest widoczny, jeśli był ukryty przez CSS
           container.style.visibility = 'visible';
 
 
           const notification = document.createElement('div');
           notification.className = `notification ${type || 'info'}`;
-          // Dodano przycisk zamknięcia z nowymi klasami
           notification.innerHTML = `<div class="notification-content">${message}</div>
                                     <button class="btn btn-icon notification-close" aria-label="Close notification">&times;</button>`;
 
           container.appendChild(notification);
 
-          // Obsługa kliknięcia przycisku zamknięcia w notyfikacji
           const closeBtn = notification.querySelector('.notification-close');
           if (closeBtn) {
             closeBtn.addEventListener('click', () => {
@@ -39,7 +36,7 @@
               setTimeout(() => {
                 notification.remove();
                 if (container.children.length === 0) {
-                  container.style.visibility = 'hidden'; // Ukryj kontener, jeśli jest pusty
+                  container.style.visibility = 'hidden';
                 }
               }, 300);
             });
@@ -51,27 +48,25 @@
           }, 10);
 
           setTimeout(() => {
-            // Sprawdź czy notyfikacja wciąż istnieje (mogła zostać zamknięta manualnie)
             if (notification.parentElement) {
               notification.classList.remove('show');
               setTimeout(() => {
                 if (notification.parentElement) notification.remove();
                 if (container.children.length === 0) {
-                  container.style.visibility = 'hidden'; // Ukryj kontener, jeśli jest pusty
+                  container.style.visibility = 'hidden';
                 }
               }, 300);
             }
-          }, 3000); // Dłuższy czas dla testów, można skrócić
+          }, 3000);
         },
-        showTooltip: function() {}, // Implementacja tooltipów
+        showTooltip: function() {},
         hideTooltip: function() {},
-        showModal: function(id, title, content, footerButtons) { // Prosta implementacja modala
+        showModal: function(id, title, content, footerButtons) {
           const modalContainer = document.getElementById('modal-container');
           if (!modalContainer) return;
 
-          // Tworzenie struktury modala
           const modal = document.createElement('div');
-          modal.className = 'modal acrylic acrylic-dark'; // Dodano klasy acrylic
+          modal.className = 'modal acrylic acrylic-dark';
           modal.id = id || `modal-${Date.now()}`;
 
           modal.innerHTML = `
@@ -99,7 +94,6 @@
               if (btnData.onClick) {
                 button.addEventListener('click', () => {
                   btnData.onClick();
-                  // Domyślnie zamykaj modal po kliknięciu przycisku w stopce, chyba że onClick zwróci false
                   if (btnData.onClick() !== false) {
                     WallpaperApp.UI.hideModal(modal.id);
                   }
@@ -110,7 +104,6 @@
               modalFooter.appendChild(button);
             });
           } else {
-            // Domyślny przycisk OK jeśli brak innych
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
             okButton.className = 'btn btn-primary';
@@ -121,7 +114,7 @@
 
           modalContainer.appendChild(modal);
           modalContainer.style.display = 'flex';
-          setTimeout(() => modal.classList.add('show'), 10); // Dla animacji (jeśli jest)
+          setTimeout(() => modal.classList.add('show'), 10);
 
           modal.querySelector('.modal-close').addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
         },
@@ -130,13 +123,13 @@
           const modalToHide = id ? document.getElementById(id) : modalContainer.querySelector('.modal');
 
           if (modalToHide) {
-            modalToHide.classList.remove('show'); // Dla animacji
+            modalToHide.classList.remove('show');
             setTimeout(() => {
               if (modalToHide.parentElement) modalToHide.parentElement.removeChild(modalToHide);
               if (modalContainer && modalContainer.children.length === 0) {
                 modalContainer.style.display = 'none';
               }
-            }, 300); // Czas animacji
+            }, 300);
           }
         }
       },
@@ -286,53 +279,63 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
-    // Przykładowe użycie modala po załadowaniu:
-    // WallpaperApp.UI.showModal('welcomeModal', 'Witaj!', 'To jest przykładowa treść modala.', [
-    //     { text: 'Anuluj', classes: 'btn-secondary', onClick: () => console.log('Anulowano')},
-    //     { text: 'Potwierdź', classes: 'btn-primary', onClick: () => console.log('Potwierdzono')}
-    // ]);
-
 
     setupBasicMenuFunctionality();
 
     function setupBasicMenuFunctionality() {
       const menuTrigger = document.getElementById('menu-trigger');
       const mainMenu = document.getElementById('main-menu');
-      const menuClose = mainMenu.querySelector('.menu-close'); // Już jest button
+      const menuClose = mainMenu.querySelector('.menu-close');
       const categoryItems = document.querySelectorAll('#main-menu .category-item');
-      const submenuCloseButtons = document.querySelectorAll('.submenu-close'); // Już są buttonami
-      // const backButtons = document.querySelectorAll('.back-button'); // Jeśli są używane
+      const submenuCloseButtons = document.querySelectorAll('.submenu-close');
+
+      // Pobierz czas animacji z CSS i przekonwertuj na milisekundy
+      let menuAnimationTimeMs = 300; // Domyślna wartość
+      try {
+        const menuAnimationTimeCss = getComputedStyle(document.documentElement).getPropertyValue('--menu-animation-time').trim();
+        if (menuAnimationTimeCss.endsWith('ms')) {
+          menuAnimationTimeMs = parseFloat(menuAnimationTimeCss);
+        } else if (menuAnimationTimeCss.endsWith('s')) {
+          menuAnimationTimeMs = parseFloat(menuAnimationTimeCss) * 1000;
+        }
+      } catch (e) {
+        console.warn("Could not parse --menu-animation-time from CSS. Using default 300ms.", e);
+      }
+
 
       function closeAllSubmenus(animate = true) {
-        const allSubmenus = document.querySelectorAll('.slide-submenu');
+        const allActiveSubmenus = document.querySelectorAll('.slide-submenu.active');
         const submenuWrapper = document.querySelector('.submenu-wrapper');
 
         if (submenuWrapper && submenuWrapper.classList.contains('active')) {
-          if (animate) {
+          if (animate && allActiveSubmenus.length > 0) {
+            allActiveSubmenus.forEach(submenu => {
+              submenu.classList.remove('active');
+            });
             submenuWrapper.classList.remove('active');
-            submenuWrapper.addEventListener('transitionend', function hideSubmenus() {
-              allSubmenus.forEach(submenu => submenu.classList.remove('active'));
-              submenuWrapper.removeEventListener('transitionend', hideSubmenus);
-            }, { once: true });
           } else {
             submenuWrapper.classList.remove('active');
-            allSubmenus.forEach(submenu => submenu.classList.remove('active'));
+            document.querySelectorAll('.slide-submenu').forEach(submenu => {
+              submenu.classList.remove('active');
+            });
           }
         } else {
-          allSubmenus.forEach(submenu => submenu.classList.remove('active'));
+          document.querySelectorAll('.slide-submenu').forEach(submenu => {
+            submenu.classList.remove('active');
+          });
         }
       }
 
       menuTrigger.addEventListener('click', () => {
         mainMenu.classList.toggle('active');
         if (!mainMenu.classList.contains('active')) {
-          closeAllSubmenus(false); // Zamknij submenu natychmiast, jeśli menu główne jest zamykane
+          closeAllSubmenus(true);
         }
       });
 
       if(menuClose) menuClose.addEventListener('click', () => {
         mainMenu.classList.remove('active');
-        closeAllSubmenus();
+        closeAllSubmenus(true);
       });
 
       categoryItems.forEach(item => {
@@ -348,38 +351,34 @@
             item.classList.add('selected');
 
             if (currentActiveSubmenu && currentActiveSubmenu !== newSubmenu) {
+              currentActiveSubmenu.classList.remove('active');
               submenuWrapper.classList.remove('active');
-              currentActiveSubmenu.classList.remove('active'); // Ukryj stary natychmiast
 
-              // Czekamy aż animacja wysunięcia się zakończy LUB krótki timeout jeśli nie ma animacji
-              const transitionDuration = parseFloat(getComputedStyle(submenuWrapper).transitionDuration) * 1000;
+              // Użyj menuAnimationTimeMs zamiast próbować parsować CSS w locie
+              const transitionDuration = menuAnimationTimeMs;
 
               setTimeout(() => {
                 newSubmenu.classList.add('active');
-                submenuWrapper.classList.add('active'); // Wysuń nowy
-                // WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
-              }, currentActiveSubmenu ? (transitionDuration || 10) : 10); // Jeśli było aktywne submenu, poczekaj na jego animację
+                submenuWrapper.classList.add('active');
+              }, transitionDuration);
 
-            } else if (!currentActiveSubmenu) { // Jeśli żadne submenu nie było aktywne
+            } else if (!currentActiveSubmenu) {
               newSubmenu.classList.add('active');
               submenuWrapper.classList.add('active');
-              // WallpaperApp.UI.showNotification(`Opened ${action} submenu`, 'info');
-            } else if (currentActiveSubmenu === newSubmenu) { // Kliknięto to samo aktywne submenu
-              closeAllSubmenus();
-              item.classList.remove('selected'); // Odznacz
+            } else if (currentActiveSubmenu === newSubmenu) {
+              closeAllSubmenus(true);
+              item.classList.remove('selected');
             }
           } else {
-            // Jeśli nie ma submenu dla tej akcji, po prostu zamknij wszystkie otwarte
-            closeAllSubmenus();
+            closeAllSubmenus(true);
             categoryItems.forEach(catItem => catItem.classList.remove('selected'));
           }
         });
       });
 
-      // backButtons.forEach(button => button.addEventListener('click', () => closeAllSubmenus()));
       submenuCloseButtons.forEach(button => button.addEventListener('click', () => {
-        closeAllSubmenus();
-        categoryItems.forEach(catItem => catItem.classList.remove('selected')); // Odznacz element menu głównego
+        closeAllSubmenus(true);
+        categoryItems.forEach(catItem => catItem.classList.remove('selected'));
       }));
 
       document.addEventListener('keydown', (e) => {
@@ -390,7 +389,7 @@
           } else {
             const activeSubmenus = document.querySelectorAll('.slide-submenu.active');
             if (activeSubmenus.length > 0) {
-              closeAllSubmenus();
+              closeAllSubmenus(true);
               categoryItems.forEach(catItem => catItem.classList.remove('selected'));
             } else if (mainMenu.classList.contains('active')) {
               mainMenu.classList.remove('active');
