@@ -292,7 +292,7 @@
       // Pobierz czas animacji z CSS i przekonwertuj na milisekundy
       let menuAnimationTimeMs = 300; // Domyślna wartość
       try {
-        // Pobieranie wartości zmiennej CSS --menu-animation-time
+        // Pobieranie wartości zmiennej CSS —menu-animation-time
         const menuAnimationTimeCss = getComputedStyle(document.documentElement).getPropertyValue('--menu-animation-time').trim();
         if (menuAnimationTimeCss.endsWith('ms')) {
           menuAnimationTimeMs = parseFloat(menuAnimationTimeCss);
