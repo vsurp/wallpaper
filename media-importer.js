@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.1.8 - Completely removed video preview window from clip settings.
+ * Version 0.2.6 - Adjusted volume and playback speed slider functionality and live update.
  */
 
 const MediaModule = (() => {
@@ -15,7 +15,7 @@ const MediaModule = (() => {
       height: 90
     },
     IMAGE_DISPLAY_DURATION: 5000,
-    STORAGE_KEY: 'flStudioWallpaper_media_v4', // Storage structure remains consistent
+    STORAGE_KEY: 'flStudioWallpaper_media_v4',
     STORAGE_KEY_OLD: 'flStudioWallpaper_media_v3',
     VIDEO_METADATA_TIMEOUT: 10000,
     VIDEO_THUMBNAIL_TIMEOUT: 10000
@@ -318,7 +318,7 @@ const MediaModule = (() => {
     const buttons = [
       { id: 'playlist-play-button', html: '<span style="filter: grayscale(100%);">▶</span> Play All', handler: playPlaylist, class: 'btn-primary' },
       { id: 'playlist-shuffle-button', html: '<span style="filter: grayscale(100%);">🔀</span> Shuffle', handler: toggleShuffle, class: 'btn-secondary' },
-      { id: 'playlist-clear-button', html: '<span style="filter: grayscale(100%);">✕</span> Clear Playlist', handler: clearPlaylist, class: 'btn-danger' }
+      { id: 'playlist-clear-button', html: '<span style="filter: grayscale(100%);">✕</span> Clear Playlist', handler: confirmClearPlaylist, class: 'btn-danger' }
     ];
     buttons.forEach(btnData => {
       const button = createUIElement('button', {
@@ -356,8 +356,7 @@ const MediaModule = (() => {
     const type = CONSTANTS.SUPPORTED_TYPES.video.includes(file.type) ? 'video' : 'image';
     const mediaItem = {
       id, name: file.name, type, mimeType: file.type, size: file.size, url, dateAdded: Date.now(), thumbnail: null,
-      settings: { volume: 0, playbackRate: 1, originalDuration: null },
-      // trimSettings property is completely removed from mediaItem
+      settings: { volume: 0, playbackRate: 1, originalDuration: null }, // Domyślna głośność 0 (wyciszone)
     };
     state.mediaLibrary.push(mediaItem);
     try {
@@ -549,7 +548,7 @@ const MediaModule = (() => {
     const badge = createUIElement('div', { className: 'media-type-badge', textContent: media.type.toUpperCase() });
     thumbnail.appendChild(badge);
     const settingsBtn = createUIElement('button', {
-      className: 'media-settings-btn btn btn-icon', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12-.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
+      className: 'media-settings-btn btn btn-icon', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42-.12-.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
       attributes: { 'aria-label': `Settings for ${media.name}` },
       events: { click: (e) => { e.stopPropagation(); openMediaSettingsDialog(media); } }
     });
@@ -559,12 +558,51 @@ const MediaModule = (() => {
       attributes: { 'aria-label': `Delete ${media.name}` },
       events: { click: (e) => {
           e.stopPropagation();
-          if (state.selection.items.has(media.id) && state.selection.items.size > 1) {
-            if (confirm(`Delete ${state.selection.items.size} selected clips? This cannot be undone.`)) {
-              Array.from(state.selection.items).forEach(idToDelete => deleteMedia(idToDelete));
-              clearSelection();
+          e.preventDefault();
+
+          const mediaId = media.id;
+
+          const performDelete = (idToDelete) => {
+            deleteMedia(idToDelete);
+          };
+
+          const performMultipleDelete = (idsToDelete) => {
+            idsToDelete.forEach(id => deleteMedia(id, true));
+            clearSelection();
+          };
+
+          const useCustomModal = typeof WallpaperApp !== 'undefined' &&
+              WallpaperApp.UI &&
+              typeof WallpaperApp.UI.showModal === 'function';
+
+          if (state.selection.items.has(mediaId) && state.selection.items.size > 1) {
+            // This is for multiple items - always confirm
+            if (useCustomModal) {
+              WallpaperApp.UI.showModal({
+                title: 'Confirm Deletion',
+                content: `Are you sure you want to delete ${state.selection.items.size} selected clips? This action cannot be undone.`,
+                footerButtons: [
+                  {
+                    text: 'Delete',
+                    classes: 'btn-danger',
+                    onClick: () => {
+                      performMultipleDelete(Array.from(state.selection.items));
+                      return true;
+                    }
+                  },
+                  { text: 'Keep', classes: 'btn-secondary', onClick: () => true }
+                ]
+              });
+            } else {
+              console.warn('WallpaperApp.UI.showModal not found, falling back to native confirm for multiple media library deletion.');
+              if (confirm(`Delete ${state.selection.items.size} selected clips? This cannot be undone.`)) {
+                performMultipleDelete(Array.from(state.selection.items));
+              }
             }
-          } else if (confirm(`Delete "${media.name}"? This cannot be undone.`)) deleteMedia(media.id);
+          } else {
+            // This is for a single item from Media Library - NO CONFIRMATION
+            performDelete(mediaId);
+          }
         }}
     });
     thumbnail.appendChild(deleteBtn);
@@ -677,23 +715,26 @@ const MediaModule = (() => {
   };
 
   const createVideoSettings = (body, media) => {
-    // No video preview element is created here.
-    // Only Volume and Playback Speed controls.
-
+    // Głośność: suwak 0-100, wartość przechowywana jako 0.0-1.0
+    const currentVolumeNormalized = media.settings?.volume ?? 0; // Domyślnie 0 (wyciszone) z processFile
     const volumeGroup = createSliderControl(
         'Volume (for actual playback):',
         `media-volume-${media.id}`,
-        media.settings?.volume ?? 0, 0, 1, 0.01,
-        null, // No onInput handler needed as there's no live preview to update
-        (value) => `${Math.round(parseFloat(value) * 100)}%`
+        Math.round(currentVolumeNormalized * 100),
+        0, 100, 1,
+        null,
+        (value) => `${value}`
     );
     body.appendChild(volumeGroup);
 
+    // Prędkość odtwarzania
+    const currentPlaybackRate = media.settings?.playbackRate ?? 1; // Domyślnie 1x
     const rateGroup = createSliderControl(
         'Playback Speed (for actual playback):',
         `media-rate-${media.id}`,
-        media.settings?.playbackRate ?? 1, 0.25, 2, 0.05,
-        null, // No onInput handler needed
+        currentPlaybackRate, // Użyj bezpośrednio wartości (np. 1, 1.25)
+        0.25, 2, 0.25, // min, max, KROK
+        null,
         (value) => `${parseFloat(value).toFixed(2)}x`
     );
     body.appendChild(rateGroup);
@@ -709,7 +750,7 @@ const MediaModule = (() => {
       events: { input: (e) => {
           const value = e.target.value;
           valueDisplay.textContent = formatValue(value);
-          if (onInput) onInput(value); // onInput can be null
+          if (onInput) onInput(value);
         }}
     });
     const valueDisplay = createUIElement('span', { textContent: formatValue(defaultValue), style: { minWidth: '40px', textAlign: 'right'} });
@@ -722,9 +763,57 @@ const MediaModule = (() => {
     media.name = document.getElementById(`media-name-${media.id}`).value.trim() || media.name;
     if (media.type === 'video') {
       if (!media.settings) media.settings = {};
-      media.settings.volume = parseFloat(document.getElementById(`media-volume-${media.id}`).value);
+      media.settings.volume = parseFloat(document.getElementById(`media-volume-${media.id}`).value) / 100;
       media.settings.playbackRate = parseFloat(document.getElementById(`media-rate-${media.id}`).value);
-      delete media.trimSettings; // Ensure trimSettings is definitely removed
+      delete media.trimSettings;
+
+      // Zastosuj zmiany do aktualnie odtwarzanego elementu, jeśli to ten sam klip
+      const activeMediaElement = state.dom.mediaContainer.querySelector('video');
+      const activeMediaSrc = activeMediaElement?.src; // Pobierz src z elementu wideo
+
+      // Porównaj URL. media.url to blob URL, activeMediaSrc może być tym samym blob URL lub pełnym URL.
+      // Bezpieczniej jest założyć, że jeśli edytujemy ustawienia klipu, który jest odtwarzany,
+      // to jego ID będzie pasować do ID aktualnie odtwarzanego klipu z playlisty (jeśli jest).
+      // Lub, jeśli odtwarzany jest pojedynczy klip, jego URL powinien pasować.
+      let isCurrentlyPlayingThisMedia = false;
+      if (activeMediaSrc) {
+        // Sprawdź, czy URL aktualnie odtwarzanego wideo pasuje do URL edytowanego medium
+        // To może być problematyczne, jeśli URL są różne (np. blob vs. pełny URL po odświeżeniu)
+        // Lepsze podejście: jeśli odtwarzamy z playlisty, porównaj ID
+        if (state.playlist.isPlaying && state.playlist.items[state.playlist.currentIndex] === media.id) {
+          isCurrentlyPlayingThisMedia = true;
+        } else if (!state.playlist.isPlaying && state.activeHighlight.mediaId === media.id && state.activeHighlight.sourceType === 'library') {
+          // Jeśli odtwarzamy pojedynczy klip z biblioteki (w pętli)
+          // Sprawdź, czy URL się zgadza (choć to może być zawodne)
+          // Lepsze byłoby przechowywanie ID aktualnie odtwarzanego pojedynczego klipu
+          if (activeMediaElement.src === media.url) { // Proste porównanie URL
+            isCurrentlyPlayingThisMedia = true;
+          }
+        }
+      }
+
+
+      if (isCurrentlyPlayingThisMedia && activeMediaElement) {
+        activeMediaElement.volume = media.settings.volume;
+        activeMediaElement.muted = (media.settings.volume === 0);
+
+        // Zmiana playbackRate może wymagać ostrożności
+        const previousPlaybackRate = activeMediaElement.playbackRate;
+        activeMediaElement.playbackRate = media.settings.playbackRate;
+
+        // Jeśli zmiana playbackRate spowodowała pauzę (niektóre przeglądarki mogą tak robić)
+        // i klip powinien grać (np. playlista jest aktywna lub klip jest w pętli)
+        // spróbuj wznowić odtwarzanie.
+        if (activeMediaElement.paused && (state.playlist.isPlaying || activeMediaElement.loop)) {
+          const playPromise = activeMediaElement.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.warn("Error attempting to re-play after settings change:", error);
+              // Można tu dodać powiadomienie dla użytkownika, jeśli automatyczne wznowienie się nie powiedzie
+            });
+          }
+        }
+      }
     }
     updateMediaGallery();
     updatePlaylistUI();
@@ -735,7 +824,6 @@ const MediaModule = (() => {
 
   const closeDialog = (dialog, backdrop) => {
     dialog.classList.remove('open'); backdrop.classList.remove('open');
-    // No video preview in dialog to manage or clean up
     setTimeout(() => {
       if (backdrop.parentElement) {
         backdrop.remove();
@@ -846,14 +934,59 @@ const MediaModule = (() => {
     } catch (e) { console.error('Error reordering playlist item:', e); showNotification('Error reordering playlist.', 'error'); }
   };
 
-  const clearPlaylist = () => {
-    try {
-      if (state.playlist.items.length === 0) { showNotification('Playlist is already empty.', 'info'); return; }
-      if (!confirm('Are you sure you want to clear the entire playlist?')) return;
-      stopPlaylist(); state.playlist.items = []; state.playlist.currentIndex = -1; state.playlist.playedInShuffle.clear();
-      updatePlaylistUI(); saveMediaList(); showNotification('Playlist cleared.', 'info');
-    } catch (e) { console.error('Error in clearPlaylist:', e); showNotification('Error clearing playlist.', 'error'); }
+  const confirmClearPlaylist = () => {
+    if (state.playlist.items.length === 0) {
+      showNotification('Playlist is already empty.', 'info');
+      return;
+    }
+    const useCustomModal = typeof WallpaperApp !== 'undefined' &&
+        WallpaperApp.UI &&
+        typeof WallpaperApp.UI.showModal === 'function';
+
+    if (useCustomModal) {
+      WallpaperApp.UI.showModal({
+        id: 'confirm-clear-playlist-modal',
+        title: 'Confirm Playlist Deletion',
+        content: 'Are you sure you want to delete the entire playlist? This action cannot be undone.',
+        footerButtons: [
+          {
+            text: 'Delete',
+            classes: 'btn-danger',
+            onClick: () => {
+              clearPlaylistLogic();
+              return true;
+            }
+          },
+          {
+            text: 'Keep',
+            classes: 'btn-secondary',
+            onClick: () => true
+          }
+        ]
+      });
+    } else {
+      console.warn('WallpaperApp.UI.showModal not found, falling back to native confirm for clearing playlist.');
+      if (confirm('Are you sure you want to clear the entire playlist?')) {
+        clearPlaylistLogic();
+      }
+    }
   };
+
+  const clearPlaylistLogic = () => {
+    try {
+      stopPlaylist();
+      state.playlist.items = [];
+      state.playlist.currentIndex = -1;
+      state.playlist.playedInShuffle.clear();
+      updatePlaylistUI();
+      saveMediaList();
+      showNotification('Playlist cleared.', 'info');
+    } catch (e) {
+      console.error('Error in clearPlaylistLogic:', e);
+      showNotification('Error clearing playlist.', 'error');
+    }
+  };
+
 
   // Playback Functions
   const selectMedia = (media, loopSingle = false) => {
@@ -882,8 +1015,8 @@ const MediaModule = (() => {
     } else if (media.type === 'video') {
       element = document.createElement('video');
       element.src = media.url; element.autoplay = true; element.loop = loopOverride;
-      element.muted = (media.settings?.volume === 0) || (media.settings?.volume === undefined && !isPlaylistContext);
-      element.volume = media.settings?.volume ?? (isPlaylistContext ? 0.5 : 0);
+      element.muted = (media.settings?.volume === 0);
+      element.volume = media.settings?.volume ?? 0;
       element.playbackRate = media.settings?.playbackRate ?? 1;
       Object.assign(element.style, { width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: '0', left: '0' });
       element.addEventListener('error', function(e) {
@@ -1018,7 +1151,7 @@ const MediaModule = (() => {
     }
   };
 
-  const deleteMedia = (id) => {
+  const deleteMedia = (id, suppressNotification = false) => {
     const indexInLibrary = state.mediaLibrary.findIndex(m => m.id === id);
     if (indexInLibrary === -1) return;
     const mediaToDelete = state.mediaLibrary[indexInLibrary];
@@ -1045,9 +1178,14 @@ const MediaModule = (() => {
     } else if (state.playlist.items.length === 0) { state.playlist.currentIndex = -1; stopPlaylist(); }
     const currentMediaElement = state.dom.mediaContainer.querySelector('img, video');
     if (currentMediaElement && currentMediaElement.src === mediaToDelete.url) { clearMediaDisplay(); updateActiveHighlight(null); }
-    if (state.mediaLibrary.length === 0) clearPlaylist();
+    if (state.mediaLibrary.length === 0) clearPlaylistLogic();
     else updatePlaylistUI();
-    updateMediaGallery(); saveMediaList(); showNotification(`Removed: ${mediaToDelete.name}`, 'info'); clearSelection();
+    updateMediaGallery(); saveMediaList();
+
+    if (!suppressNotification) {
+      // Powiadomienie o usunięciu pojedynczego klipu zostało celowo usunięte.
+    }
+    clearSelection();
   };
 
   // UI Update Functions (Playlist, Active Highlight)
@@ -1175,7 +1313,7 @@ const MediaModule = (() => {
   const saveMediaList = () => {
     try {
       const mediaForStorage = state.mediaLibrary.map(media => {
-        const { url, thumbnail, trimSettings, ...mediaMeta } = media; // Ensure trimSettings is destructured out
+        const { url, thumbnail, trimSettings, ...mediaMeta } = media;
         return { ...mediaMeta };
       });
       const storageData = { media: mediaForStorage, playlist: { items: state.playlist.items, shuffle: state.playlist.shuffle } };
@@ -1205,6 +1343,17 @@ const MediaModule = (() => {
       }
       state.mediaLibrary = (parsedData.media || []).map(media => {
         const { trimSettings, ...mediaWithoutTrim } = media;
+        // Upewnij się, że stare wpisy mają domyślne ustawienia, jeśli ich brakuje
+        if (!mediaWithoutTrim.settings) {
+          mediaWithoutTrim.settings = { volume: 0, playbackRate: 1, originalDuration: null };
+        } else {
+          if (typeof mediaWithoutTrim.settings.volume === 'undefined') {
+            mediaWithoutTrim.settings.volume = 0;
+          }
+          if (typeof mediaWithoutTrim.settings.playbackRate === 'undefined') {
+            mediaWithoutTrim.settings.playbackRate = 1;
+          }
+        }
         return mediaWithoutTrim;
       });
       state.playlist.items = parsedData.playlist?.items || [];
