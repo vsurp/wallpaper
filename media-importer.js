@@ -1,6 +1,7 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
  * Version 0.1.3 - Refactored for better organization and maintainability
+ * MODIFIED: Added preview looping, error handling, and more explicit play calls for trim preview.
  */
 
 const MediaModule = (() => {
@@ -888,7 +889,7 @@ const MediaModule = (() => {
     // Settings button (cog icon)
     const settingsBtn = createUIElement('button', {
       className: 'media-settings-btn btn btn-icon',
-      innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
+      innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
       attributes: { 'aria-label': `Settings for ${media.name}` },
       events: {
         click: (e) => {
@@ -1149,7 +1150,8 @@ const MediaModule = (() => {
     const videoPreview = createUIElement('video', {
       src: media.url, // Use blob URL
       controls: true,
-      muted: !(media.settings?.volume > 0), // Mute if volume is 0
+      muted: true, // MODIFICATION: Start muted to help with autoplay
+      // loop: true, // MODIFICATION: Set loop attribute for simpler looping if full segment is desired
       style: { width: '100%', marginBottom: '10px', backgroundColor: '#000', borderRadius: '4px' }
     });
 
@@ -1169,18 +1171,52 @@ const MediaModule = (() => {
       const duration = videoPreview.duration;
       if (typeof duration === 'number' && !isNaN(duration) && duration > 0) {
         videoDuration = duration;
-        // Update originalDuration in mediaItem if it wasn't set or was 0
         if (!media.settings.originalDuration || media.settings.originalDuration <= 0) {
           media.settings.originalDuration = videoDuration;
         }
-        // Correct endTime if it's invalid or null, based on the actual loaded duration
         if (currentTrimSettings.endTime === null || currentTrimSettings.endTime > videoDuration || currentTrimSettings.endTime <= 0) {
           currentTrimSettings.endTime = videoDuration;
         }
       }
-      videoPreview.currentTime = currentTrimSettings.startTime || 0;
-      updateTrimUI(); // Update UI with loaded values
+      // Set initial currentTime based on trim settings
+      this.currentTime = currentTrimSettings.startTime || 0;
+      updateTrimUI();
+
+      // MODIFICATION: Attempt to play if trim is enabled
+      if (currentTrimSettings.trimEnabled) {
+        this.play().catch(err => console.warn("Initial preview play interrupted:", err));
+      }
     };
+
+    videoPreview.onerror = function(e) {
+      console.error("Error loading video preview:", e.target.error);
+      const timeDisplay = trimGroup.querySelector('.time-display-js');
+      if (timeDisplay) {
+        timeDisplay.textContent = "Error loading preview.";
+      }
+      const startInput = document.getElementById(`trim-start-${media.id}`);
+      const endInput = document.getElementById(`trim-end-${media.id}`);
+      if (startInput) startInput.disabled = true;
+      if (endInput) endInput.disabled = true;
+    };
+
+    videoPreview.addEventListener('timeupdate', function() {
+      if (videoDuration > 0 && currentTrimSettings.trimEnabled) {
+        const playbackStartTime = currentTrimSettings.startTime || 0;
+        const playbackEndTime = currentTrimSettings.endTime || videoDuration;
+
+        // If playback goes beyond the defined trim end, or before trim start (e.g. due to seeking)
+        // reset to the start of the trim and ensure it plays.
+        if (this.currentTime >= playbackEndTime - 0.05 || this.currentTime < playbackStartTime) {
+          if (!this.seeking) { // Avoid interfering with user seeking
+            this.currentTime = playbackStartTime;
+            // Ensure play is called again, especially if it was paused or ended
+            this.play().catch(err => console.warn("Preview loop re-play interrupted:", err));
+          }
+        }
+      }
+    });
+
     trimGroup.appendChild(videoPreview);
 
     const trimDescription = createUIElement('div', {
@@ -1189,59 +1225,56 @@ const MediaModule = (() => {
     });
     trimGroup.appendChild(trimDescription);
 
-    const trimContainer = createUIElement('div'); // Container for trim controls
+    const trimContainer = createUIElement('div');
 
-    // Start time slider and display
     const startTimeGroup = createTrimControl('Start Point:', `trim-start-${media.id}`, (value) => {
       if (videoDuration <= 0) return;
       const percent = parseFloat(value) / 100;
       currentTrimSettings.startTime = Math.max(0, percent * videoDuration);
-      // Ensure start time is not after end time
       if (currentTrimSettings.startTime >= currentTrimSettings.endTime && currentTrimSettings.endTime > 0.1) {
         currentTrimSettings.startTime = Math.max(0, currentTrimSettings.endTime - 0.1);
       } else if (currentTrimSettings.startTime >= currentTrimSettings.endTime) {
-        currentTrimSettings.startTime = 0; // fallback if endTime is also 0 or very small
+        currentTrimSettings.startTime = 0;
       }
       videoPreview.currentTime = currentTrimSettings.startTime;
+      currentTrimSettings.trimEnabled = true;
       updateTrimUI();
-      currentTrimSettings.trimEnabled = true; // Enable trim when slider is used
+      videoPreview.play().catch(err => console.warn("Preview play after start trim interrupted:", err));
     });
 
-    // End time slider and display
     const endTimeGroup = createTrimControl('End Point:', `trim-end-${media.id}`, (value) => {
       if (videoDuration <= 0) return;
       const percent = parseFloat(value) / 100;
       currentTrimSettings.endTime = Math.min(videoDuration, percent * videoDuration);
-      // Ensure end time is not before start time
       if (currentTrimSettings.endTime <= currentTrimSettings.startTime && currentTrimSettings.startTime < videoDuration - 0.1) {
         currentTrimSettings.endTime = Math.min(videoDuration, currentTrimSettings.startTime + 0.1);
       } else if (currentTrimSettings.endTime <= currentTrimSettings.startTime) {
-        currentTrimSettings.endTime = videoDuration; // fallback if startTime is also at the end or very large
+        currentTrimSettings.endTime = videoDuration;
       }
-      videoPreview.currentTime = currentTrimSettings.endTime;
+      videoPreview.currentTime = currentTrimSettings.startTime; // MODIFICATION: Seek to start for loop preview
+      currentTrimSettings.trimEnabled = true;
       updateTrimUI();
-      currentTrimSettings.trimEnabled = true; // Enable trim when slider is used
+      videoPreview.play().catch(err => console.warn("Preview play after end trim interrupted:", err));
     });
 
     trimContainer.appendChild(startTimeGroup);
     trimContainer.appendChild(endTimeGroup);
 
-    // Visual trim UI (timeline bar)
     const trimUIContainer = createUIElement('div', {
       style: { position: 'relative', height: '20px', backgroundColor: '#111', borderRadius: '4px', overflow: 'hidden', marginTop: '15px', marginBottom: '15px' }
     });
     const timeline = createUIElement('div', {
       style: { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: '#333' }
     });
-    const trimRegion = createUIElement('div', { // Represents the selected trim portion
+    const trimRegion = createUIElement('div', {
       style: { position: 'absolute', top: '0', height: '100%', backgroundColor: 'rgba(var(--primary-color-rgb), 0.5)', borderLeft: '2px solid var(--primary-color)', borderRight: '2px solid var(--primary-color)', boxSizing: 'border-box' }
     });
-    const timeDisplay = createUIElement('div', { // Displays formatted times
+    const timeDisplay = createUIElement('div', {
+      className: 'time-display-js',
       style: { marginTop: '5px', fontSize: '12px', textAlign: 'center', color: 'rgba(255, 255, 255, 0.7)' }
     });
 
     const updateTrimUI = () => {
-      // Fallback if videoDuration is still 0 but preview has a duration
       if (videoDuration <= 0 && videoPreview.duration > 0) {
         videoDuration = videoPreview.duration;
         if (!media.settings.originalDuration || media.settings.originalDuration <= 0) {
@@ -1252,7 +1285,7 @@ const MediaModule = (() => {
         }
       }
 
-      if (videoDuration <= 0) { // If duration still unknown, disable sliders and show message
+      if (videoDuration <= 0) {
         const startInput = document.getElementById(`trim-start-${media.id}`);
         const endInput = document.getElementById(`trim-end-${media.id}`);
         if (startInput) { startInput.value = 0; startInput.disabled = true; }
@@ -1263,17 +1296,13 @@ const MediaModule = (() => {
         return;
       }
 
-      // Enable sliders if disabled
       const startInput = document.getElementById(`trim-start-${media.id}`);
       const endInput = document.getElementById(`trim-end-${media.id}`);
       if (startInput) startInput.disabled = false;
       if (endInput) endInput.disabled = false;
 
-
-      // Ensure trim values are valid
       currentTrimSettings.startTime = Math.max(0, Math.min(currentTrimSettings.startTime ?? 0, videoDuration));
       currentTrimSettings.endTime = Math.max(currentTrimSettings.startTime, Math.min(currentTrimSettings.endTime ?? videoDuration, videoDuration));
-
 
       const startVal = currentTrimSettings.startTime;
       const endVal = currentTrimSettings.endTime;
@@ -1284,7 +1313,6 @@ const MediaModule = (() => {
       trimRegion.style.width = `${Math.max(0, endPercent - startPercent)}%`;
       timeDisplay.textContent = `Start: ${formatTime(startVal)} | End: ${formatTime(endVal)} | Duration: ${formatTime(Math.max(0, endVal - startVal))}`;
 
-      // Update slider positions and value displays
       if (startInput) startInput.value = startPercent;
       if (endInput) endInput.value = endPercent;
       const startDisplay = startTimeGroup.querySelector('span');
@@ -1293,11 +1321,15 @@ const MediaModule = (() => {
       if (endDisplay) endDisplay.textContent = formatTime(endVal);
     };
 
-    timeline.addEventListener('click', (e) => { // Allow clicking on timeline to seek
+    timeline.addEventListener('click', (e) => {
       if (videoDuration <= 0) return;
       const trimRect = trimUIContainer.getBoundingClientRect();
       const percent = Math.max(0, Math.min(1, (e.clientX - trimRect.left) / trimRect.width));
       videoPreview.currentTime = percent * videoDuration;
+      // MODIFICATION: Play after timeline click if trim is enabled
+      if (currentTrimSettings.trimEnabled) {
+        videoPreview.play().catch(err => console.warn("Preview play after timeline click interrupted:", err));
+      }
     });
 
     timeline.appendChild(trimRegion);
@@ -1307,11 +1339,9 @@ const MediaModule = (() => {
     trimGroup.appendChild(trimContainer);
     body.appendChild(trimGroup);
 
-    // Store currentTrimSettings on the body element for access in saveMediaSettings
     body.currentTrimSettings = currentTrimSettings;
-    body.updateTrimUI = updateTrimUI; // Expose for initial call
+    body.updateTrimUI = updateTrimUI;
 
-    // Volume control
     const volumeGroup = createSliderControl('Volume:', `media-volume-${media.id}`,
         media.settings?.volume ?? 0, 0, 1, 0.01, (value) => {
           videoPreview.volume = parseFloat(value);
@@ -1319,14 +1349,12 @@ const MediaModule = (() => {
         }, (value) => `${Math.round(parseFloat(value) * 100)}%`);
     body.appendChild(volumeGroup);
 
-    // Playback speed control
     const rateGroup = createSliderControl('Playback Speed:', `media-rate-${media.id}`,
-        media.settings?.playbackRate ?? 1, 0.25, 2, 0.05, (value) => { // Finer step for playback rate
+        media.settings?.playbackRate ?? 1, 0.25, 2, 0.05, (value) => {
           videoPreview.playbackRate = parseFloat(value);
         }, (value) => `${parseFloat(value).toFixed(2)}x`);
     body.appendChild(rateGroup);
 
-    // Initial UI update for trim
     if (videoDuration > 0) updateTrimUI();
   };
 
@@ -1408,18 +1436,15 @@ const MediaModule = (() => {
   const closeDialog = (dialog, backdrop) => {
     dialog.classList.remove('open');
     backdrop.classList.remove('open');
-    // Remove from DOM after animation
+
+    // Pause video preview when closing dialog
+    const videoPreview = dialog.querySelector('video');
+    if (videoPreview) {
+      videoPreview.pause();
+    }
+
     setTimeout(() => {
       backdrop.remove();
-      // Release object URLs for video previews if they exist and are not the main media URL
-      const videoPreview = dialog.querySelector('video');
-      if (videoPreview && videoPreview.src.startsWith('blob:')) {
-        // Check if this src is different from the main media.url to avoid revoking it
-        // This check is complex as media.url might also be a blob.
-        // For simplicity, we assume dialog previews might create their own blobs or use the same.
-        // A more robust solution would tag dialog-specific blobs.
-        // URL.revokeObjectURL(videoPreview.src); // Be cautious with this.
-      }
     }, 300); // Match CSS animation duration
   };
 
