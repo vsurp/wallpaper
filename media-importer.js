@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.1.4 - Refactored video trim preview logic extensively
+ * Version 0.1.8 - Completely removed video preview window from clip settings.
  */
 
 const MediaModule = (() => {
@@ -15,8 +15,8 @@ const MediaModule = (() => {
       height: 90
     },
     IMAGE_DISPLAY_DURATION: 5000,
-    STORAGE_KEY: 'flStudioWallpaper_media_v3',
-    STORAGE_KEY_OLD: 'flStudioWallpaper_media_v2',
+    STORAGE_KEY: 'flStudioWallpaper_media_v4', // Storage structure remains consistent
+    STORAGE_KEY_OLD: 'flStudioWallpaper_media_v3',
     VIDEO_METADATA_TIMEOUT: 10000,
     VIDEO_THUMBNAIL_TIMEOUT: 10000
   };
@@ -357,7 +357,7 @@ const MediaModule = (() => {
     const mediaItem = {
       id, name: file.name, type, mimeType: file.type, size: file.size, url, dateAdded: Date.now(), thumbnail: null,
       settings: { volume: 0, playbackRate: 1, originalDuration: null },
-      trimSettings: type === 'video' ? { trimEnabled: false, startTime: 0, endTime: null } : null
+      // trimSettings property is completely removed from mediaItem
     };
     state.mediaLibrary.push(mediaItem);
     try {
@@ -369,11 +369,9 @@ const MediaModule = (() => {
     if (type === 'video') {
       try {
         mediaItem.settings.originalDuration = await getVideoDuration(mediaItem.url);
-        if (mediaItem.trimSettings) mediaItem.trimSettings.endTime = mediaItem.settings.originalDuration;
       } catch (err) {
         console.warn(`Error getting video duration for ${mediaItem.name}:`, err);
         mediaItem.settings.originalDuration = 0;
-        if (mediaItem.trimSettings) mediaItem.trimSettings.endTime = 0;
       }
     }
   };
@@ -551,7 +549,7 @@ const MediaModule = (() => {
     const badge = createUIElement('div', { className: 'media-type-badge', textContent: media.type.toUpperCase() });
     thumbnail.appendChild(badge);
     const settingsBtn = createUIElement('button', {
-      className: 'media-settings-btn btn btn-icon', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
+      className: 'media-settings-btn btn btn-icon', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12-.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
       attributes: { 'aria-label': `Settings for ${media.name}` },
       events: { click: (e) => { e.stopPropagation(); openMediaSettingsDialog(media); } }
     });
@@ -679,248 +677,26 @@ const MediaModule = (() => {
   };
 
   const createVideoSettings = (body, media) => {
-    const trimGroup = createUIElement('div', { className: 'form-group' });
-    const trimLabel = createUIElement('label', { textContent: 'Trim Video:' });
-    trimGroup.appendChild(trimLabel);
+    // No video preview element is created here.
+    // Only Volume and Playback Speed controls.
 
-    const videoPreview = createUIElement('video', {
-      src: media.url, controls: true, muted: true,
-      style: { width: '100%', marginBottom: '10px', backgroundColor: '#000', borderRadius: '4px' }
-    });
-
-    let videoDuration = media.settings?.originalDuration || 0;
-    console.log(`[Trim Editor for ${media.name}] Initial videoDuration: ${videoDuration.toFixed(3)}s`);
-
-    // Deep copy trim settings to avoid modifying original object until save
-    let currentTrimSettings = JSON.parse(JSON.stringify(media.trimSettings || {
-      trimEnabled: false, startTime: 0, endTime: videoDuration
-    }));
-
-    // Ensure endTime is initialized correctly if null or invalid, based on a valid videoDuration
-    if (videoDuration > 0) {
-      if (currentTrimSettings.endTime === null || currentTrimSettings.endTime > videoDuration || currentTrimSettings.endTime <= 0) {
-        currentTrimSettings.endTime = videoDuration;
-      }
-      // Ensure startTime is not greater than endTime
-      if (currentTrimSettings.startTime >= currentTrimSettings.endTime) {
-        currentTrimSettings.startTime = Math.max(0, currentTrimSettings.endTime - 0.1); // Ensure startTime is before endTime
-      }
-    } else { // If videoDuration is not yet known or 0
-      currentTrimSettings.endTime = 0; // Or handle as appropriate, maybe disable trimming
-      currentTrimSettings.startTime = 0;
-    }
-    console.log(`[Trim Editor for ${media.name}] Initial currentTrimSettings:`, JSON.parse(JSON.stringify(currentTrimSettings)));
-
-    videoPreview.onloadedmetadata = function() {
-      const elementDuration = this.duration;
-      console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Element duration=${elementDuration.toFixed(3)}s. Current videoDuration state=${videoDuration.toFixed(3)}s`);
-
-      if (typeof elementDuration === 'number' && !isNaN(elementDuration) && elementDuration > 0) {
-        videoDuration = elementDuration; // Update with the most accurate duration
-        console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Updated videoDuration to ${videoDuration.toFixed(3)}s`);
-
-        // Update originalDuration in media object if it wasn't set or was incorrect
-        if (!media.settings.originalDuration || media.settings.originalDuration <= 0 || Math.abs(media.settings.originalDuration - videoDuration) > 0.01) {
-          media.settings.originalDuration = videoDuration;
-        }
-
-        // Re-validate/initialize currentTrimSettings.endTime based on the (potentially new) videoDuration
-        if (currentTrimSettings.endTime === null || currentTrimSettings.endTime > videoDuration || currentTrimSettings.endTime <= currentTrimSettings.startTime) {
-          currentTrimSettings.endTime = videoDuration;
-          console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Adjusted endTime to ${currentTrimSettings.endTime.toFixed(3)}s`);
-        }
-        // Ensure startTime is valid and not after endTime
-        if (currentTrimSettings.startTime >= videoDuration || currentTrimSettings.startTime >= currentTrimSettings.endTime) {
-          currentTrimSettings.startTime = 0; // Reset or adjust as needed
-          console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Adjusted startTime to ${currentTrimSettings.startTime.toFixed(3)}s due to invalid range`);
-        }
-      }
-
-      this.currentTime = currentTrimSettings.startTime || 0;
-      console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Set currentTime to ${this.currentTime.toFixed(3)}s`);
-      updateTrimUI(); // Update sliders and text displays
-
-      if (currentTrimSettings.trimEnabled && videoDuration > 0) {
-        console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Trim is enabled & videoDuration > 0. Start: ${currentTrimSettings.startTime.toFixed(3)}s, End: ${currentTrimSettings.endTime.toFixed(3)}s. Attempting to play.`);
-        this.play().catch(err => console.warn(`[Trim Editor for ${media.name}] Initial preview play (onloadedmetadata, trim enabled) interrupted:`, err.message));
-      } else {
-        console.log(`[Trim Editor for ${media.name}] onloadedmetadata: Trim not enabled OR videoDuration is 0. Preview will not autoplay. TrimEnabled: ${currentTrimSettings.trimEnabled}, videoDuration: ${videoDuration.toFixed(3)}s`);
-      }
-    };
-
-    videoPreview.onerror = function(e) {
-      console.error(`[Trim Editor for ${media.name}] Error loading video preview:`, e.target.error?.message || 'Unknown error');
-      const timeDisplay = trimGroup.querySelector('.time-display-js');
-      if (timeDisplay) timeDisplay.textContent = "Error loading preview.";
-      // Optionally disable sliders here
-      document.getElementById(`trim-start-${media.id}`).disabled = true;
-      document.getElementById(`trim-end-${media.id}`).disabled = true;
-    };
-
-    videoPreview.addEventListener('timeupdate', function() {
-      if (this.seeking) return; // Don't interfere with user seeking
-
-      // Fallback: if videoDuration wasn't set by onloadedmetadata but element has it now
-      if (!(videoDuration > 0) && this.duration > 0 && !isNaN(this.duration)) {
-        console.log(`[Trim Editor for ${media.name}] timeupdate: videoDuration was ${videoDuration.toFixed(3)}, but element now has ${this.duration.toFixed(3)}. Re-initializing duration-dependent settings.`);
-        videoDuration = this.duration;
-        if (!media.settings.originalDuration || media.settings.originalDuration <= 0) {
-          media.settings.originalDuration = videoDuration;
-        }
-        // Re-validate trim settings based on new duration
-        if (currentTrimSettings.endTime === null || currentTrimSettings.endTime > videoDuration || currentTrimSettings.endTime <= currentTrimSettings.startTime) {
-          currentTrimSettings.endTime = videoDuration;
-        }
-        if (currentTrimSettings.startTime >= videoDuration) {
-          currentTrimSettings.startTime = 0;
-        }
-        updateTrimUI(); // Update UI to reflect new duration calculations
-      }
-
-      if (!(videoDuration > 0) || !currentTrimSettings || !currentTrimSettings.trimEnabled) {
-        return; // Not ready or trim not active
-      }
-
-      const playbackStartTime = currentTrimSettings.startTime;
-      const playbackEndTime = currentTrimSettings.endTime;
-
-      // Loop logic
-      if (this.currentTime >= playbackEndTime - 0.1 || this.currentTime < playbackStartTime) {
-        // console.log(`[Trim Editor for ${media.name}] timeupdate: Looping/Correcting. CT: ${this.currentTime.toFixed(3)} -> ${playbackStartTime.toFixed(3)}. Paused: ${this.paused}`);
-        this.currentTime = playbackStartTime;
-        // Ensure it plays after resetting time for loop, even if it was paused by browser or end of segment
-        this.play().catch(err => {
-          // console.warn(`[Trim Editor for ${media.name}] Preview loop play attempt at ${this.currentTime.toFixed(3)}s interrupted:`, err.message);
-        });
-      }
-    });
-
-    trimGroup.appendChild(videoPreview);
-    const trimDescription = createUIElement('div', { className: 'trim-description', textContent: 'Adjust start and end points. Video will loop within the trimmed section during preview.' });
-    trimGroup.appendChild(trimDescription);
-    const trimContainer = createUIElement('div');
-
-    const startTimeGroup = createTrimControl('Start Point:', `trim-start-${media.id}`, (value) => {
-      if (videoDuration <= 0) { console.warn(`[Trim Editor for ${media.name}] Start slider: videoDuration is 0 or invalid. Ignoring.`); return; }
-      const percent = parseFloat(value) / 100;
-      let newStartTime = Math.max(0, percent * videoDuration);
-
-      // Ensure startTime does not exceed endTime
-      if (newStartTime >= currentTrimSettings.endTime && currentTrimSettings.endTime > 0.01) { // allow some buffer
-        newStartTime = Math.max(0, currentTrimSettings.endTime - 0.01);
-      } else if (newStartTime >= currentTrimSettings.endTime) { // if endTime is 0 or very small
-        newStartTime = 0;
-      }
-      currentTrimSettings.startTime = newStartTime;
-      currentTrimSettings.trimEnabled = true;
-      updateTrimUI();
-      videoPreview.currentTime = currentTrimSettings.startTime;
-      console.log(`[Trim Editor for ${media.name}] Start slider: Set preview currentTime to ${videoPreview.currentTime.toFixed(3)}s. Attempting to play.`);
-      videoPreview.play().catch(err => console.warn(`[Trim Editor for ${media.name}] Preview play after start trim (to time ${videoPreview.currentTime.toFixed(3)}s) interrupted:`, err.message));
-    });
-
-    const endTimeGroup = createTrimControl('End Point:', `trim-end-${media.id}`, (value) => {
-      if (videoDuration <= 0) { console.warn(`[Trim Editor for ${media.name}] End slider: videoDuration is 0 or invalid. Ignoring.`); return; }
-      const percent = parseFloat(value) / 100;
-      let newEndTime = Math.min(videoDuration, percent * videoDuration);
-
-      // Ensure endTime is not before startTime
-      if (newEndTime <= currentTrimSettings.startTime && currentTrimSettings.startTime < videoDuration - 0.01) { // allow some buffer
-        newEndTime = Math.min(videoDuration, currentTrimSettings.startTime + 0.01);
-      } else if (newEndTime <= currentTrimSettings.startTime) { // if startTime is at the very end
-        newEndTime = videoDuration;
-      }
-      currentTrimSettings.endTime = newEndTime;
-      currentTrimSettings.trimEnabled = true;
-      updateTrimUI();
-      videoPreview.currentTime = currentTrimSettings.startTime; // Seek to start of trim for consistent preview
-      console.log(`[Trim Editor for ${media.name}] End slider: Set preview currentTime to ${videoPreview.currentTime.toFixed(3)}s (start of trim). Attempting to play.`);
-      videoPreview.play().catch(err => console.warn(`[Trim Editor for ${media.name}] Preview play after end trim (to time ${videoPreview.currentTime.toFixed(3)}s) interrupted:`, err.message));
-    });
-
-    trimContainer.appendChild(startTimeGroup); trimContainer.appendChild(endTimeGroup);
-    const trimUIContainer = createUIElement('div', { style: { position: 'relative', height: '20px', backgroundColor: '#111', borderRadius: '4px', overflow: 'hidden', marginTop: '15px', marginBottom: '15px' } });
-    const timeline = createUIElement('div', { style: { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: '#333' } });
-    const trimRegion = createUIElement('div', { style: { position: 'absolute', top: '0', height: '100%', backgroundColor: 'rgba(var(--primary-color-rgb), 0.5)', borderLeft: '2px solid var(--primary-color)', borderRight: '2px solid var(--primary-color)', boxSizing: 'border-box' } });
-    const timeDisplay = createUIElement('div', { className: 'time-display-js', style: { marginTop: '5px', fontSize: '12px', textAlign: 'center', color: 'rgba(255, 255, 255, 0.7)' } });
-
-    const updateTrimUI = () => {
-      const startInput = document.getElementById(`trim-start-${media.id}`);
-      const endInput = document.getElementById(`trim-end-${media.id}`);
-
-      if (videoDuration <= 0) {
-        if (startInput) { startInput.value = 0; startInput.disabled = true; }
-        if (endInput) { endInput.value = 100; endInput.disabled = true; }
-        timeDisplay.textContent = 'Waiting for video duration...';
-        trimRegion.style.left = '0%'; trimRegion.style.width = '0%';
-        // console.log(`[Trim Editor for ${media.name}] updateTrimUI: videoDuration is ${videoDuration.toFixed(3)}s. UI disabled.`);
-        return;
-      }
-
-      if (startInput) startInput.disabled = false;
-      if (endInput) endInput.disabled = false;
-
-      // Ensure currentTrimSettings are valid against the current videoDuration
-      currentTrimSettings.startTime = Math.max(0, Math.min(currentTrimSettings.startTime ?? 0, videoDuration));
-      currentTrimSettings.endTime = Math.max(currentTrimSettings.startTime, Math.min(currentTrimSettings.endTime ?? videoDuration, videoDuration));
-      if (currentTrimSettings.endTime <= currentTrimSettings.startTime) { // Final check if somehow still invalid
-        currentTrimSettings.endTime = Math.min(videoDuration, currentTrimSettings.startTime + 0.1);
-        if (currentTrimSettings.endTime <= currentTrimSettings.startTime) currentTrimSettings.endTime = videoDuration;
-      }
-
-      const startVal = currentTrimSettings.startTime;
-      const endVal = currentTrimSettings.endTime;
-      const startPercent = (startVal / videoDuration) * 100;
-      const endPercent = (endVal / videoDuration) * 100;
-
-      trimRegion.style.left = `${startPercent}%`;
-      trimRegion.style.width = `${Math.max(0, endPercent - startPercent)}%`;
-      timeDisplay.textContent = `Start: ${formatTime(startVal)} | End: ${formatTime(endVal)} | Duration: ${formatTime(Math.max(0, endVal - startVal))}`;
-
-      if (startInput && parseFloat(startInput.value) !== startPercent) startInput.value = startPercent;
-      if (endInput && parseFloat(endInput.value) !== endPercent) endInput.value = endPercent;
-
-      const startDisplay = startTimeGroup.querySelector('span');
-      const endDisplay = endTimeGroup.querySelector('span');
-      if (startDisplay) startDisplay.textContent = formatTime(startVal);
-      if (endDisplay) endDisplay.textContent = formatTime(endVal);
-      // console.log(`[Trim Editor for ${media.name}] updateTrimUI: Updated. Start=${startVal.toFixed(3)}, End=${endVal.toFixed(3)}, Duration=${videoDuration.toFixed(3)}`);
-    };
-
-    timeline.addEventListener('click', (e) => {
-      if (videoDuration <= 0) return;
-      const trimRect = trimUIContainer.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - trimRect.left) / trimRect.width));
-      videoPreview.currentTime = percent * videoDuration;
-      if (currentTrimSettings.trimEnabled) {
-        console.log(`[Trim Editor for ${media.name}] Timeline click: Set preview currentTime to ${videoPreview.currentTime.toFixed(3)}s. Attempting to play.`);
-        videoPreview.play().catch(err => console.warn(`[Trim Editor for ${media.name}] Preview play after timeline click interrupted:`, err.message));
-      }
-    });
-
-    timeline.appendChild(trimRegion); trimUIContainer.appendChild(timeline);
-    trimContainer.appendChild(trimUIContainer); trimContainer.appendChild(timeDisplay);
-    trimGroup.appendChild(trimContainer); body.appendChild(trimGroup);
-
-    // Store currentTrimSettings and updateTrimUI on the body for access in saveMediaSettings
-    body.currentTrimSettings = currentTrimSettings;
-    body.updateTrimUI = updateTrimUI; // Expose for potential external calls if needed
-
-    const volumeGroup = createSliderControl('Volume:', `media-volume-${media.id}`, media.settings?.volume ?? 0, 0, 1, 0.01, (value) => { videoPreview.volume = parseFloat(value); videoPreview.muted = parseFloat(value) === 0; }, (value) => `${Math.round(parseFloat(value) * 100)}%`);
+    const volumeGroup = createSliderControl(
+        'Volume (for actual playback):',
+        `media-volume-${media.id}`,
+        media.settings?.volume ?? 0, 0, 1, 0.01,
+        null, // No onInput handler needed as there's no live preview to update
+        (value) => `${Math.round(parseFloat(value) * 100)}%`
+    );
     body.appendChild(volumeGroup);
-    const rateGroup = createSliderControl('Playback Speed:', `media-rate-${media.id}`, media.settings?.playbackRate ?? 1, 0.25, 2, 0.05, (value) => { videoPreview.playbackRate = parseFloat(value); }, (value) => `${parseFloat(value).toFixed(2)}x`);
+
+    const rateGroup = createSliderControl(
+        'Playback Speed (for actual playback):',
+        `media-rate-${media.id}`,
+        media.settings?.playbackRate ?? 1, 0.25, 2, 0.05,
+        null, // No onInput handler needed
+        (value) => `${parseFloat(value).toFixed(2)}x`
+    );
     body.appendChild(rateGroup);
-
-    updateTrimUI(); // Initial UI setup based on current settings
-  };
-
-  const createTrimControl = (labelText, inputId, onInput) => {
-    const group = createUIElement('div', { className: 'form-group', style: { marginBottom: '15px' } });
-    const label = createUIElement('label', { htmlFor: inputId, textContent: labelText });
-    const input = createUIElement('input', { type: 'range', id: inputId, min: '0', max: '100', step: '0.1', value: '0', events: { input: (e) => onInput(e.target.value) } });
-    const valueDisplay = createUIElement('span', { style: { marginLeft: '10px', minWidth: '50px', display: 'inline-block' } });
-    group.appendChild(label); group.appendChild(input); group.appendChild(valueDisplay);
-    return group;
   };
 
   const createSliderControl = (labelText, inputId, defaultValue, min, max, step, onInput, formatValue) => {
@@ -929,7 +705,12 @@ const MediaModule = (() => {
     const inputContainer = createUIElement('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' }});
     const input = createUIElement('input', {
       type: 'range', id: inputId, min: min.toString(), max: max.toString(), step: step.toString(), value: defaultValue.toString(),
-      style: { flexGrow: '1'}, events: { input: (e) => { const value = e.target.value; valueDisplay.textContent = formatValue(value); if (onInput) onInput(value); } }
+      style: { flexGrow: '1'},
+      events: { input: (e) => {
+          const value = e.target.value;
+          valueDisplay.textContent = formatValue(value);
+          if (onInput) onInput(value); // onInput can be null
+        }}
     });
     const valueDisplay = createUIElement('span', { textContent: formatValue(defaultValue), style: { minWidth: '40px', textAlign: 'right'} });
     inputContainer.appendChild(input); inputContainer.appendChild(valueDisplay);
@@ -943,36 +724,10 @@ const MediaModule = (() => {
       if (!media.settings) media.settings = {};
       media.settings.volume = parseFloat(document.getElementById(`media-volume-${media.id}`).value);
       media.settings.playbackRate = parseFloat(document.getElementById(`media-rate-${media.id}`).value);
-
-      const body = dialog.querySelector('.media-settings-dialog-body');
-      if (body && body.currentTrimSettings) {
-        // Use the originalDuration from media.settings as the source of truth for duration
-        const videoDuration = media.settings.originalDuration || 0;
-        let { startTime, endTime, trimEnabled } = body.currentTrimSettings;
-
-        // Validate and sanitize trim values against the known original duration
-        startTime = Math.max(0, Math.min(startTime ?? 0, videoDuration));
-        endTime = Math.max(startTime, Math.min(endTime ?? videoDuration, videoDuration));
-        if (endTime <= startTime && videoDuration > 0) { // Ensure endTime is always after startTime if duration exists
-          endTime = videoDuration;
-        }
-
-        // Determine if trim is effectively active (i.e., actually changes playback from full duration)
-        const effectivelyTrimmed = (startTime > 0.01) ||
-            (videoDuration > 0 && Math.abs(endTime - videoDuration) > 0.01 && endTime < videoDuration);
-
-        media.trimSettings = {
-          startTime: parseFloat(startTime.toFixed(3)), // Store with precision
-          endTime: parseFloat(endTime.toFixed(3)),   // Store with precision
-          trimEnabled: trimEnabled && effectivelyTrimmed
-        };
-        console.log(`[Trim Editor for ${media.name}] Saving trim settings:`, JSON.parse(JSON.stringify(media.trimSettings)));
-      } else {
-        console.warn(`[Trim Editor for ${media.name}] Could not find currentTrimSettings on dialog body during save.`);
-      }
+      delete media.trimSettings; // Ensure trimSettings is definitely removed
     }
     updateMediaGallery();
-    updatePlaylistUI(); // This will re-render playlist items, potentially showing new trim indicators
+    updatePlaylistUI();
     saveMediaList();
     showNotification('Settings saved!', 'success');
     closeDialog(dialog, backdrop);
@@ -980,16 +735,9 @@ const MediaModule = (() => {
 
   const closeDialog = (dialog, backdrop) => {
     dialog.classList.remove('open'); backdrop.classList.remove('open');
-    const videoPreview = dialog.querySelector('video');
-    if (videoPreview) {
-      console.log(`[Trim Editor] Closing dialog. Pausing video preview for dialog associated with media.`);
-      videoPreview.pause();
-      // Consider removing src and calling load() to free resources, if not causing issues
-      // videoPreview.removeAttribute('src');
-      // videoPreview.load();
-    }
+    // No video preview in dialog to manage or clean up
     setTimeout(() => {
-      if (backdrop.parentElement) { // Check if still in DOM before removing
+      if (backdrop.parentElement) {
         backdrop.remove();
       }
     }, 300);
@@ -1124,10 +872,6 @@ const MediaModule = (() => {
   const createMediaElement = (media, isPlaylistContext = false, loopOverride = false) => {
     let element;
     if (!media || !media.type || !media.url) { console.error("Cannot create media element: media item or URL is invalid.", media); return null; }
-    const useTrim = media.type === 'video' && media.trimSettings?.trimEnabled && typeof media.trimSettings.startTime === 'number' && typeof media.trimSettings.endTime === 'number' && media.trimSettings.endTime > media.trimSettings.startTime;
-    const trimSettings = media.trimSettings || {};
-    const startTime = useTrim ? trimSettings.startTime : 0;
-    const endTime = useTrim ? trimSettings.endTime : (media.settings?.originalDuration || Infinity);
 
     if (media.type === 'image') {
       element = createUIElement('img', { src: media.url, alt: media.name, style: { width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: '0', left: '0' } });
@@ -1147,20 +891,8 @@ const MediaModule = (() => {
         showNotification(`Error playing ${media.name}: ${e.target.error?.message || 'Unknown error'}`, 'error');
         if (isPlaylistContext && state.playlist.isPlaying) setTimeout(() => playNextItem(), 100);
       });
-      if (useTrim) {
-        element.addEventListener('loadedmetadata', function() {
-          if (typeof this.duration === 'number' && !isNaN(this.duration)) this.currentTime = Math.max(0, Math.min(startTime, this.duration - 0.1));
-        });
-        element.addEventListener('timeupdate', function() {
-          if (this.currentTime < (startTime - 0.05) && !this.seeking) this.currentTime = startTime;
-          if (this.currentTime >= endTime - 0.05 ) {
-            if (isPlaylistContext && state.playlist.isPlaying && !loopOverride) playNextItem();
-            else if (loopOverride) { this.currentTime = startTime; this.play().catch(e => console.warn("Autoplay prevented on trim loop:", media.name, e)); }
-            else this.pause();
-          }
-        });
-      }
-      if (isPlaylistContext && !loopOverride && !useTrim) {
+
+      if (isPlaylistContext && !loopOverride) {
         element.addEventListener('ended', () => { if (state.playlist.isPlaying) playNextItem(); });
       }
     }
@@ -1398,23 +1130,15 @@ const MediaModule = (() => {
     const thumbnailDiv = createUIElement('div', { className: 'playlist-item-thumbnail', style: media.thumbnail ? { backgroundImage: `url(${media.thumbnail})` } : { backgroundColor: '#333' } });
     if (!media.thumbnail) thumbnailDiv.textContent = media.type.charAt(0).toUpperCase();
     item.appendChild(thumbnailDiv);
-    if (media.type === 'video' && media.trimSettings?.trimEnabled) {
-      const originalDuration = media.settings.originalDuration;
-      const isEffectivelyTrimmed = (media.trimSettings.startTime || 0) > 0.01 || (typeof originalDuration === 'number' && originalDuration > 0 && typeof media.trimSettings.endTime === 'number' && Math.abs(media.trimSettings.endTime - originalDuration) > 0.01 && media.trimSettings.endTime < originalDuration);
-      if (isEffectivelyTrimmed) {
-        const trimIndicator = createUIElement('div', { className: 'playlist-item-trim-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">✂️</span>', title: `Trimmed: ${formatTime(media.trimSettings.startTime)} - ${formatTime(media.trimSettings.endTime)}` });
-        thumbnailDiv.appendChild(trimIndicator);
-      }
-    }
+
     const infoContainer = createUIElement('div', { className: 'playlist-item-info' });
     const nameEl = createUIElement('div', { className: 'playlist-item-name', textContent: media.name });
     infoContainer.appendChild(nameEl);
     const detailsEl = createUIElement('div', { className: 'playlist-item-details' });
     let detailsText = `${media.type.charAt(0).toUpperCase() + media.type.slice(1)} · ${formatFileSize(media.size)}`;
-    if (media.type === 'video' && media.trimSettings?.trimEnabled) {
-      const duration = (media.trimSettings.endTime ?? 0) - (media.trimSettings.startTime ?? 0);
-      if (duration > 0) detailsText += ` · Trimmed (${formatTime(duration)})`;
-    } else if (media.type === 'video' && media.settings?.originalDuration) detailsText += ` · ${formatTime(media.settings.originalDuration)}`;
+    if (media.type === 'video' && media.settings?.originalDuration) {
+      detailsText += ` · ${formatTime(media.settings.originalDuration)}`;
+    }
     detailsEl.textContent = detailsText; infoContainer.appendChild(detailsEl); item.appendChild(infoContainer);
     const deleteBtn = createUIElement('button', {
       className: 'btn btn-icon btn-danger playlist-item-delete', innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
@@ -1451,7 +1175,8 @@ const MediaModule = (() => {
   const saveMediaList = () => {
     try {
       const mediaForStorage = state.mediaLibrary.map(media => {
-        const { url, thumbnail, ...mediaMeta } = media; return { ...mediaMeta };
+        const { url, thumbnail, trimSettings, ...mediaMeta } = media; // Ensure trimSettings is destructured out
+        return { ...mediaMeta };
       });
       const storageData = { media: mediaForStorage, playlist: { items: state.playlist.items, shuffle: state.playlist.shuffle } };
       localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(storageData));
@@ -1466,7 +1191,9 @@ const MediaModule = (() => {
         if (oldSavedData) {
           try {
             const oldParsedData = JSON.parse(oldSavedData);
-            if (oldParsedData.media?.length > 0) showNotification(`Old library data found (${oldParsedData.media.length} items). Please re-import files for full functionality as old data cannot be automatically migrated.`, 'warning', 10000);
+            if (oldParsedData.media?.length > 0) {
+              showNotification(`Old library data found (${oldParsedData.media.length} items). Re-import files for full functionality. Trimming settings will be ignored.`, 'warning', 10000);
+            }
             localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD);
           } catch (oldParseError) { console.warn("Error parsing old saved data, removing it:", oldParseError); localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD); }
         }
@@ -1476,7 +1203,13 @@ const MediaModule = (() => {
       if (parsedData.media && Array.isArray(parsedData.media) && parsedData.media.length > 0) {
         showNotification(`Loaded metadata for ${parsedData.media.length} media entries. Please re-import the actual files to make them playable.`, 'info', 7000);
       }
-      state.mediaLibrary = []; state.playlist.items = []; // Files need re-importing
+      state.mediaLibrary = (parsedData.media || []).map(media => {
+        const { trimSettings, ...mediaWithoutTrim } = media;
+        return mediaWithoutTrim;
+      });
+      state.playlist.items = parsedData.playlist?.items || [];
+      state.playlist.shuffle = parsedData.playlist?.shuffle || false;
+
       updateMediaGallery(); updatePlaylistUI();
     } catch (e) {
       console.error('Failed to load or parse saved media data:', e);
@@ -1519,7 +1252,7 @@ const MediaModule = (() => {
       if (media) openMediaSettingsDialog(media);
       else showNotification(`Media item with ID ${mediaId} not found.`, 'warning');
     },
-    _getState: () => state // Expose internal state for debugging (use with caution)
+    _getState: () => state
   };
 })();
 
