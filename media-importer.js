@@ -193,7 +193,7 @@ const MediaModule = (() => {
 
     const emptyState = document.createElement('div');
     emptyState.id = 'media-empty-state';
-    emptyState.textContent = 'No media imported yet';
+    emptyState.textContent = '';
     gallery.appendChild(emptyState);
     section.appendChild(gallery);
     state.dom.mediaGallery = gallery;
