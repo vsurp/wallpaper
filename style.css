@@ -30,7 +30,6 @@
   --secondary-color: #2196f3;
   --background-color: #121212;
   --text-color: #ffffff;
-  /* MODIFIED: Slightly darker menu background, between previous and current */
   --menu-background: rgba(30, 30, 30, 0.87);
   --menu-item-background: rgba(0, 0, 0, 0.2);
   --menu-hover: rgba(255, 255, 255, 0.1);
@@ -42,8 +41,8 @@
   --info-color: #2196f3;
 
   /* Windows 11 Acrylic Properties */
-  --acrylic-blur: 12.5px; /* This is a base, overridden by specific menu levels */
-  --acrylic-saturation: 125%; /* This is a base, overridden by specific menu levels */
+  --acrylic-blur: 12.5px;
+  --acrylic-saturation: 125%;
   --acrylic-noise-opacity: 0.03;
 
   /* Transitions and Animations */
@@ -52,8 +51,8 @@
   --dialog-animation-time: 300ms;
   --slider-transition-time: 250ms;
   --notification-animation-time: 300ms;
-  --highlight-animation-duration: 2s; /* Czas trwania dla aktywnego elementu (nieskończone) */
-  --section-pulse-duration: 1.2s; /* Czas trwania dla pulsującej sekcji (jednorazowe) */
+  --highlight-animation-duration: 2s;
+  --section-pulse-duration: 1.2s;
 
 
   /* Layout Dimensions */
@@ -117,7 +116,6 @@ body {
   position: relative;
 }
 
-/* Background grid pattern */
 body::before {
   content: "";
   position: fixed;
@@ -134,7 +132,6 @@ body::before {
   pointer-events: none;
 }
 
-/* Text selection behavior */
 div, h1, h2, h3, p, span, label, button {
   user-select: none;
   -webkit-user-select: none;
@@ -149,7 +146,6 @@ input, textarea, select {
   -ms-user-select: text;
 }
 
-/* Reset button styles */
 button,
 input[type="button"],
 input[type="submit"],
@@ -224,7 +220,6 @@ input[type="reset"] {
   to { transform: translateX(100%); }
 }
 
-/* Nowa, bardziej nowoczesna animacja podświetlenia */
 @keyframes modernShine {
   0% {
     border-color: rgba(var(--primary-color-rgb), 0.2);
@@ -233,8 +228,8 @@ input[type="reset"] {
   }
   30% {
     border-color: rgba(var(--primary-color-rgb), 0.8);
-    box-shadow: 0 0 12px 2px rgba(var(--primary-color-rgb), 0.5), /* Główny blask */
-    inset 0 0 8px 1px rgba(var(--primary-color-rgb), 0.3); /* Wewnętrzny blask */
+    box-shadow: 0 0 12px 2px rgba(var(--primary-color-rgb), 0.5),
+    inset 0 0 8px 1px rgba(var(--primary-color-rgb), 0.3);
   }
   70% {
     border-color: rgba(var(--primary-color-rgb), 0.8);
@@ -249,7 +244,7 @@ input[type="reset"] {
 }
 
 
-@keyframes pulse { /* Ta animacja jest teraz nieużywana, ale zostawiam ją na wszelki wypadek */
+@keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.7);
   }
@@ -280,10 +275,9 @@ input[type="reset"] {
 
 .acrylic {
   position: relative;
-  /* backdrop-filter is set per menu level for varying intensity */
 }
 
-.acrylic::before { /* This ::before is for the noise texture, not the gradient overlay */
+.acrylic::before {
   content: "";
   position: absolute;
   top: 0;
@@ -293,16 +287,16 @@ input[type="reset"] {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
   opacity: var(--acrylic-noise-opacity);
   pointer-events: none;
-  z-index: -1; /* Ensures it's behind the menu content and gradient overlay */
+  z-index: -1;
   animation: grain 8s steps(10) infinite;
-  border-radius: inherit; /* If the parent .acrylic element has rounded corners */
+  border-radius: inherit;
 }
 
-.acrylic-light { /* Not directly used for menus, but available */
+.acrylic-light {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-.acrylic-dark { /* Fallback for menus if backdrop-filter is not supported */
+.acrylic-dark {
   background-color: var(--menu-background);
 }
 
@@ -310,7 +304,6 @@ input[type="reset"] {
    6. MENU SYSTEM
    ======================================================================== */
 
-/* Menu Trigger */
 .menu-hover-area {
   position: fixed;
   top: 0;
@@ -364,14 +357,13 @@ input[type="reset"] {
   opacity: 1;
 }
 
-/* Main Menu */
 #main-menu {
   position: fixed;
   top: 0;
   right: 0;
   width: var(--menu-width);
   height: 100%;
-  background-color: var(--menu-background); /* Fallback */
+  background-color: var(--menu-background);
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
   z-index: var(--z-menu);
   transform: translateX(100%);
@@ -381,12 +373,10 @@ input[type="reset"] {
   flex-direction: column;
   pointer-events: none;
   overflow: hidden;
-  /* Strongest blur for main menu */
   backdrop-filter: blur(25px) saturate(160%);
   -webkit-backdrop-filter: blur(25px) saturate(160%);
 }
 
-/* Gradient overlay for main menu for gradient blur effect */
 #main-menu::before {
   content: "";
   position: absolute;
@@ -394,7 +384,6 @@ input[type="reset"] {
   left: 0;
   width: 100%;
   height: 100%;
-  /* Right side (0%) keeps its opacity, left side (100%) is fully transparent */
   background: linear-gradient(to left, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.0) 100%);
   pointer-events: none;
   z-index: 0;
@@ -410,7 +399,6 @@ input[type="reset"] {
   box-shadow: none;
 }
 
-/* Submenu Wrappers */
 .submenu-wrapper,
 .submenu-wrapper-l2 {
   position: fixed;
@@ -439,14 +427,13 @@ input[type="reset"] {
   pointer-events: all;
 }
 
-/* Submenu Panels - L1 */
 .slide-submenu {
   position: absolute;
   top: 0;
   left: 0;
   height: 100vh;
   width: var(--submenu-width);
-  background-color: var(--menu-background); /* Fallback */
+  background-color: var(--menu-background);
   box-shadow: none;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
@@ -454,12 +441,10 @@ input[type="reset"] {
   transform: translateX(100%);
   transition: transform var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
   pointer-events: none;
-  /* Medium blur for L1 submenu */
   backdrop-filter: blur(16px) saturate(145%);
   -webkit-backdrop-filter: blur(16px) saturate(145%);
 }
 
-/* Gradient overlay for L1 submenu */
 .slide-submenu::before {
   content: "";
   position: absolute;
@@ -467,20 +452,18 @@ input[type="reset"] {
   left: 0;
   width: 100%;
   height: 100%;
-  /* Right side (0%) keeps its opacity, left side (100%) is fully transparent */
   background: linear-gradient(to left, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.08) 60%, rgba(0,0,0,0.0) 100%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Submenu Panels - L2 */
 .slide-submenu-l2 {
   position: absolute;
   top: 0;
   left: 0;
   height: 100vh;
   width: var(--submenu-width);
-  background-color: var(--menu-background); /* Fallback */
+  background-color: var(--menu-background);
   box-shadow: none;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
@@ -488,12 +471,10 @@ input[type="reset"] {
   transform: translateX(100%);
   transition: transform var(--menu-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
   pointer-events: none;
-  /* Weakest blur for L2 submenu */
   backdrop-filter: blur(8px) saturate(130%);
   -webkit-backdrop-filter: blur(8px) saturate(130%);
 }
 
-/* MODIFIED: Gradient overlay for L2 submenu for even lighter left side */
 .slide-submenu-l2::before {
   content: "";
   position: absolute;
@@ -501,7 +482,6 @@ input[type="reset"] {
   left: 0;
   width: 100%;
   height: 100%;
-  /* Right side (0%) opacity slightly reduced, mid-left (60%) even more transparent */
   background: linear-gradient(to left, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.02) 60%, rgba(0,0,0,0.0) 100%);
   pointer-events: none;
   z-index: 0;
@@ -513,7 +493,6 @@ input[type="reset"] {
   pointer-events: all;
 }
 
-/* Menu Structure */
 .menu-header {
   height: var(--header-height);
   padding: 0 1rem;
@@ -604,7 +583,6 @@ input[type="reset"] {
   opacity: 0.7;
 }
 
-/* Menu Items */
 .category-item,
 .menu-item,
 .submenu-item,
@@ -669,7 +647,6 @@ input[type="reset"] {
    7. UI COMPONENTS
    ======================================================================== */
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -714,7 +691,6 @@ input[type="reset"] {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Button Variants */
 .btn-primary {
   background-color: var(--primary-color);
   color: var(--background-color);
@@ -781,7 +757,6 @@ input[type="reset"] {
   fill: currentColor;
 }
 
-/* Button Icons */
 .btn svg,
 .btn span[class*="icon-"] {
   margin-right: var(--btn-icon-spacing);
@@ -795,7 +770,6 @@ input[type="reset"] {
   margin-right: 0;
 }
 
-/* Form Elements */
 .form-group {
   margin-bottom: 15px;
 }
@@ -821,83 +795,44 @@ input[type="reset"] {
   font-size: 0.9rem;
 }
 
+/* --- Slider Styles (input type="range") --- */
 .form-group input[type="range"] {
-  padding: 0; /* Reset padding for range inputs to allow custom thumb styling */
-  height: 8px; /* Example height, adjust as needed */
-  -webkit-appearance: none; /* Necessary for custom styling in WebKit/Blink */
+  padding: 0; /* Reset padding for range inputs */
+  height: 20px; /* Increased height for easier interaction and thumb centering */
+  -webkit-appearance: none;
   appearance: none;
-  background: rgba(0,0,0,0.3); /* Track background */
-  border-radius: 4px;
+  background: transparent; /* Track background will be styled by pseudo-elements */
+  cursor: pointer;
 }
 
-/* Enhanced Range Slider Track with Notch Visualization */
+/* Webkit (Chrome, Safari, Edge) Track Styling */
 .form-group input[type="range"]::-webkit-slider-runnable-track {
   width: 100%;
   height: 8px;
-  cursor: pointer;
-  background: linear-gradient(to right,
-  rgba(255,255,255,0.3) 0%,
-  rgba(255,255,255,0.3) 1px,
-  transparent 1px,
-  transparent calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% + 1px),
-  transparent calc(25% + 1px),
-  transparent calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% + 1px),
-  transparent calc(50% + 1px),
-  transparent calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% + 1px),
-  transparent calc(75% + 1px),
-  transparent calc(100% - 1px),
-  rgba(255,255,255,0.3) calc(100% - 1px),
-  rgba(255,255,255,0.3) 100%
-  ), rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.3); /* Simplified track background */
   border-radius: 4px;
   border: none;
 }
 
+/* Mozilla (Firefox) Track Styling */
 .form-group input[type="range"]::-moz-range-track {
   width: 100%;
   height: 8px;
-  cursor: pointer;
-  background: linear-gradient(to right,
-  rgba(255,255,255,0.3) 0%,
-  rgba(255,255,255,0.3) 1px,
-  transparent 1px,
-  transparent calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% + 1px),
-  transparent calc(25% + 1px),
-  transparent calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% + 1px),
-  transparent calc(50% + 1px),
-  transparent calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% + 1px),
-  transparent calc(75% + 1px),
-  transparent calc(100% - 1px),
-  rgba(255,255,255,0.3) calc(100% - 1px),
-  rgba(255,255,255,0.3) 100%
-  ), rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.3); /* Simplified track background */
   border-radius: 4px;
   border: none;
 }
 
-/* Enhanced Range Slider Thumb Styling */
+/* Webkit Thumb Styling */
 .form-group input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 18px; /* Thumb width */
+  height: 18px; /* Thumb height */
   background: var(--primary-color);
-  border: 2px solid var(--menu-background);
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -5px; /* Adjust to vertically center thumb on track */
+  border: 2px solid var(--menu-background); /* Border to make it pop */
+  border-radius: 50%; /* Circular thumb */
+  margin-top: -5px; /* Vertically center thumb on the track ( (track_height - thumb_height) / 2 ) */
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
@@ -907,15 +842,16 @@ input[type="reset"] {
   box-shadow: 0 2px 5px rgba(0,0,0,0.4);
 }
 
+/* Mozilla Thumb Styling */
 .form-group input[type="range"]::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 18px; /* Thumb width */
+  height: 18px; /* Thumb height */
   background: var(--primary-color);
   border: 2px solid var(--menu-background);
   border-radius: 50%;
-  cursor: pointer;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+  cursor: pointer; /* Ensure cursor changes for FF */
 }
 
 .form-group input[type="range"]::-moz-range-thumb:hover {
@@ -923,29 +859,20 @@ input[type="reset"] {
   box-shadow: 0 2px 5px rgba(0,0,0,0.4);
 }
 
-/* Special styling for volume slider with specific notches */
-input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
-  background: linear-gradient(to right,
-  rgba(255,255,255,0.3) 0%,
-  rgba(255,255,255,0.3) 1px,
-  transparent 1px,
-  transparent calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% - 1px),
-  rgba(255,255,255,0.2) calc(25% + 1px),
-  transparent calc(25% + 1px),
-  transparent calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% - 1px),
-  rgba(255,255,255,0.3) calc(50% + 1px),
-  transparent calc(50% + 1px),
-  transparent calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% - 1px),
-  rgba(255,255,255,0.2) calc(75% + 1px),
-  transparent calc(75% + 1px),
-  transparent calc(100% - 1px),
-  rgba(255,255,255,0.3) calc(100% - 1px),
-  rgba(255,255,255,0.3) 100%
-  ), rgba(0,0,0,0.3);
+/* Focus styles for sliders */
+.form-group input[type="range"]:focus {
+  outline: none; /* Remove default outline */
 }
+
+.form-group input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.4), 0 1px 3px rgba(0,0,0,0.3); /* Add focus ring */
+}
+
+.form-group input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.4), 0 1px 3px rgba(0,0,0,0.3); /* Add focus ring */
+}
+/* --- End Slider Styles --- */
+
 
 .form-group textarea {
   resize: vertical;
@@ -968,7 +895,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
    8. MEDIA MODULE STYLES
    ======================================================================== */
 
-/* Media Import Submenu Layout */
 #import-media-submenu .menu-content {
   display: flex;
   flex-direction: column;
@@ -984,7 +910,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   flex-shrink: 0;
 }
 
-/* Media Library Section */
 #media-library-section,
 #playlist-section {
   flex-grow: 1;
@@ -995,8 +920,8 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   background-color: var(--menu-item-background);
   border-radius: var(--btn-border-radius);
   padding: 10px;
-  border: 1px solid transparent; /* Dodano bazowy border dla animacji */
-  box-shadow: none; /* Usunięto domyślny box-shadow, animacja go obsłuży */
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
 #media-library-section h3,
@@ -1008,7 +933,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Media Gallery */
 #media-gallery {
   flex-grow: 1;
   overflow-y: auto;
@@ -1023,13 +947,13 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   aspect-ratio: 1 / 1;
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: var(--btn-border-radius);
-  overflow: hidden; /* Ważne dla efektu gradientu/błysku wewnątrz */
+  overflow: hidden;
   position: relative;
   cursor: pointer;
   transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
   display: flex;
   flex-direction: column;
-  border: 1px solid transparent; /* Bazowy border dla animacji */
+  border: 1px solid transparent;
 }
 
 .media-thumbnail:hover {
@@ -1111,7 +1035,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   right: 5px;
 }
 
-/* Quick Navigation */
 #quick-nav-section {
   display: flex;
   flex-shrink: 0;
@@ -1138,7 +1061,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   border-color: rgba(var(--primary-color-rgb), 0.5);
 }
 
-/* Playlist Section */
 #playlist-container {
   flex-grow: 1;
   overflow-y: auto;
@@ -1158,7 +1080,7 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   border-radius: var(--btn-border-radius);
   cursor: grab;
   transition: background-color 0.2s ease, box-shadow 0.2s ease-out;
-  border: 1px solid transparent; /* Bazowy border dla animacji */
+  border: 1px solid transparent;
   position: relative;
   overflow: hidden;
 }
@@ -1263,7 +1185,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   opacity: 1;
 }
 
-/* Playlist Controls */
 #playlist-controls {
   flex-shrink: 0;
   display: flex;
@@ -1292,15 +1213,13 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   color: var(--primary-color);
 }
 
-/* Active Highlight - Zastosowanie nowej animacji */
 .media-thumbnail.playing-from-here,
 .playlist-item.playing-from-here {
   animation: modernShine var(--highlight-animation-duration) ease-in-out infinite;
-  border: 1px solid rgba(var(--primary-color-rgb), 0.2); /* Początkowy stan dla animacji */
+  border: 1px solid rgba(var(--primary-color-rgb), 0.2);
   z-index: 3;
 }
 
-/* Selection Box */
 .selection-box {
   position: absolute;
   border: 1px solid var(--primary-color);
@@ -1317,7 +1236,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   flex-shrink: 0;
 }
 
-/* Media Settings Dialog */
 .media-settings-dialog-backdrop {
   position: fixed;
   top: 0;
@@ -1339,7 +1257,7 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
 
 .media-settings-dialog {
   width: 90%;
-  max-width: 500px; /* Increased width for better video editor layout */
+  max-width: 500px;
   background-color: var(--menu-background);
   border-radius: 8px;
   box-shadow: 0 5px 25px rgba(0, 0, 0, 0.3);
@@ -1410,13 +1328,6 @@ input[type="range"]#media-volume-${media.id}::-webkit-slider-runnable-track {
   border: 1px dashed rgba(var(--primary-color-rgb), 0.5);
 }
 
-.trim-description { /* No longer used, but kept for reference */
-  font-size: 12px;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Empty States */
 #media-empty-state,
 #playlist-empty-state {
   text-align: center;
@@ -1496,7 +1407,6 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   text-align: right;
 }
 
-/* Effect and Transition Indicators */
 .effect-indicator,
 .transition-indicator {
   position: absolute;
@@ -1518,9 +1428,8 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   left: 24px;
 }
 
-/* Zaktualizowany .pulse-highlight-effect dla sekcji */
 .pulse-highlight-effect {
-  animation: modernShine var(--section-pulse-duration) cubic-bezier(0.25, 0.1, 0.25, 1) 1; /* Używa modernShine, jednorazowo */
+  animation: modernShine var(--section-pulse-duration) cubic-bezier(0.25, 0.1, 0.25, 1) 1;
 }
 
 
@@ -1528,13 +1437,12 @@ input[type="range"].intensity-slider::-moz-range-thumb {
    10. NOTIFICATIONS AND MODALS
    ======================================================================== */
 
-/* Notifications */
 #notification-container {
   position: fixed;
   top: 10px;
-  left: 10px; /* Zmieniono z right na left */
+  left: 10px;
   z-index: var(--z-notification);
-  visibility: hidden; /* Start hidden, JS will make it visible */
+  visibility: hidden;
 }
 
 .notification {
@@ -1546,7 +1454,7 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   border-radius: 4px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   max-width: 350px;
-  transform: translateX(-120%); /* Zmieniono kierunek wysuwania */
+  transform: translateX(-120%);
   transition: transform var(--notification-animation-time) cubic-bezier(0.43, 0, 0.15, 1);
 }
 
@@ -1582,7 +1490,6 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   border-left: 4px solid var(--success-color);
 }
 
-/* Modals */
 #modal-container {
   position: fixed;
   top: 0;
@@ -1707,7 +1614,6 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   }
 }
 
-/* Loading Screen (if needed) */
 #loading-screen {
   position: fixed;
   top: 0;
@@ -1748,7 +1654,7 @@ input[type="range"].intensity-slider::-moz-range-thumb {
 .progress-bar {
   height: 100%;
   background-color: var(--primary-color);
-  width: 0; /* JS will update this */
+  width: 0;
   transition: width 0.3s cubic-bezier(0.43, 0, 0.15, 1);
 }
 
@@ -1770,20 +1676,20 @@ input[type="range"].intensity-slider::-moz-range-thumb {
 
 .trim-video-preview {
   width: 100%;
-  max-height: 240px; /* Increased height for better preview */
+  max-height: 240px;
   background-color: #000;
   border-radius: var(--btn-border-radius);
   margin-bottom: 15px;
   border: 1px solid rgba(255,255,255,0.1);
-  object-fit: contain; /* Ensure video content is fully visible */
+  object-fit: contain;
 }
 
 .trim-slider-interactive-area {
   position: relative;
   width: 100%;
-  height: 30px; /* Increased height for better interaction */
+  height: 30px;
   margin-bottom: 10px;
-  padding: 10px 0;
+  padding: 10px 0; /* Provides some vertical space for the thumb to not be cut off */
 }
 
 .trim-slider-track {
@@ -1801,7 +1707,8 @@ input[type="range"].intensity-slider::-moz-range-thumb {
 .trim-slider-thumb {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
+  /* transform: translate(-50%, -50%); Corrected in JS for left positioning */
+  transform: translateY(-50%); /* Only Y-axis centering relative to its own height */
   width: 20px;
   height: 20px;
   background-color: var(--primary-color);
@@ -1814,7 +1721,8 @@ input[type="range"].intensity-slider::-moz-range-thumb {
 }
 
 .trim-slider-thumb:hover {
-  transform: translate(-50%, -50%) scale(1.1);
+  /* transform: translate(-50%, -50%) scale(1.1); */ /* JS handles left, so only scale Y-centered thumb */
+  transform: translateY(-50%) scale(1.1);
   box-shadow: 0 3px 8px rgba(0,0,0,0.4);
 }
 
@@ -1822,8 +1730,10 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   cursor: grabbing;
   background-color: color-mix(in srgb, var(--primary-color) 80%, white);
   box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-  transform: translate(-50%, -50%) scale(1.15);
+  /* transform: translate(-50%, -50%) scale(1.15); */
+  transform: translateY(-50%) scale(1.15);
 }
+
 
 .trim-values-display {
   font-size: 0.85em;
@@ -1842,7 +1752,6 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   color: var(--primary-color);
 }
 
-/* Enhanced styling for video editor form groups */
 .media-settings-dialog .form-group {
   margin-bottom: 20px;
 }
@@ -1853,9 +1762,8 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   margin-bottom: 8px;
 }
 
-/* Special styling for the video editor dialog to ensure proper scrolling */
 .media-settings-dialog-body {
-  max-height: calc(90vh - 120px); /* Account for header and footer */
+  max-height: calc(90vh - 120px);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
@@ -1878,20 +1786,6 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Datalist styling for range inputs - browser support varies */
 datalist {
-  display: none; /* Datalist itself is not visible */
-}
-
-/* Better visual feedback for range inputs when focused */
-input[type="range"]:focus {
-  outline: none;
-}
-
-input[type="range"]:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.3);
-}
-
-input[type="range"]:focus::-moz-range-thumb {
-  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.3);
+  display: none;
 }
