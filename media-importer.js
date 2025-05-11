@@ -339,12 +339,14 @@ const MediaModule = (() => {
         } else if (target.matches('#effects-quick-nav-button')) {
           if (window.WallpaperApp?.MenuTools?.openL2Submenu) {
             window.WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
-            applyTemporaryHighlight(state.dom.mediaLibrarySection);
+            removeAllStaticHighlights();
+            applyStaticHighlight(state.dom.mediaLibrarySection);
           } else showNotification('Menu function (effects) not available.', 'warning');
         } else if (target.matches('#transitions-quick-nav-button')) {
           if (window.WallpaperApp?.MenuTools?.openL2Submenu) {
             window.WallpaperApp.MenuTools.openL2Submenu('transitions-list-submenu');
-            applyTemporaryHighlight(state.dom.playlistSection);
+            removeAllStaticHighlights();
+            applyStaticHighlight(state.dom.playlistSection);
           } else showNotification('Menu function (transitions) not available.', 'warning');
         }
       });
@@ -1486,10 +1488,20 @@ const MediaModule = (() => {
     else console.log(`[${type?.toUpperCase() || 'INFO'}] ${message}`);
   };
 
-  const applyTemporaryHighlight = (element) => {
+  const applyStaticHighlight = (element) => {
     if (!element) return;
-    element.classList.add('pulse-highlight-effect');
-    setTimeout(() => element.classList.remove('pulse-highlight-effect'), 1400);
+    element.classList.add('static-highlight');
+  };
+
+  const removeStaticHighlight = (element) => {
+    if (!element) return;
+    element.classList.remove('static-highlight');
+  };
+
+  const removeAllStaticHighlights = () => {
+    document.querySelectorAll('.static-highlight').forEach(el => {
+      el.classList.remove('static-highlight');
+    });
   };
 
   // Public API

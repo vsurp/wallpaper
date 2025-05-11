@@ -452,13 +452,20 @@
               if (!activeL2Wrapper.classList.contains('active')) {
                 activeL2Wrapper.style.display = 'none';
               }
+
+              // Usuń statyczne podświetlenia gdy zamykane jest submenu L2
+              if (window.MediaModule && window.MediaModule._getState) {
+                const state = window.MediaModule._getState();
+                if (state.dom.mediaLibrarySection) {
+                  state.dom.mediaLibrarySection.classList.remove('static-highlight');
+                }
+                if (state.dom.playlistSection) {
+                  state.dom.playlistSection.classList.remove('static-highlight');
+                }
+              }
+
               resolve();
             });
-          } else {
-            mainMenu.classList.remove('main-menu-l2-active');
-            resolve();
-          }
-        });
       }
 
       async function closeLevel1Submenus() {
@@ -635,6 +642,16 @@
                   WallpaperApp.MenuTools.openL2Submenu(
                           isEffectsAction ? 'effects-list-submenu' : 'transitions-list-submenu'
                   );
+
+                  // Dodaj statyczne podświetlenie
+                  if (window.MediaModule && window.MediaModule._getState) {
+                    const state = window.MediaModule._getState();
+                    if (isEffectsAction && state.dom.mediaLibrarySection) {
+                      state.dom.mediaLibrarySection.classList.add('static-highlight');
+                    } else if (isTransitionsAction && state.dom.playlistSection) {
+                      state.dom.playlistSection.classList.add('static-highlight');
+                    }
+                  }
                 }
               }, 0); // Delay of 0 milliseconds
             }
@@ -770,14 +787,13 @@
           categoryItems.forEach(catItem => catItem.classList.remove('selected'));
         });
       });
-
-      submenuCloseButtonsL2.forEach(button => {
-        button.addEventListener('click', async () => {
-          await closeLevel2Submenus();
-          document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-          document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-        });
-      });
+          submenuCloseButtonsL2.forEach(button => {
+            button.addEventListener('click', async () => {
+              await closeLevel2Submenus();
+              document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
+              document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
+            });
+          });
 
       // Global escape key handler
       document.addEventListener('keydown', async (e) => {
@@ -797,8 +813,8 @@
           }
         }
       });
-    }
-  });
+    })
+  }}});
 </script>
 <script src="media-importer.js"></script>
 </body>

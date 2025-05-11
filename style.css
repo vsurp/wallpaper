@@ -1533,6 +1533,27 @@ input[type="range"].intensity-slider::-moz-range-thumb {
   left: 24px;
 }
 
+/* Static highlight for effects/transitions sections */
+.static-highlight {
+  position: relative;
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.6);
+  background-color: rgba(var(--primary-color-rgb), 0.05);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.static-highlight::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 1px solid rgba(var(--primary-color-rgb), 0.3);
+  border-radius: calc(var(--btn-border-radius) + 4px);
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* Pulse effect with snake animation - outline version */
 .pulse-highlight-effect {
   position: relative;
