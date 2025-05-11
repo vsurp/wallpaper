@@ -313,9 +313,9 @@ const MediaModule = (() => {
   const createPlaylistControls = (controlsContainer) => {
     controlsContainer.innerHTML = '';
     const buttons = [
-      { id: 'playlist-play-button', html: '<span style="filter: grayscale(100%);">▶</span> Odtwórz wszystko', class: 'btn-primary' },
+      { id: 'playlist-play-button', html: '<span style="filter: grayscale(100%);">▶</span> Play All', class: 'btn-primary' },
       { id: 'playlist-shuffle-button', html: '<span style="filter: grayscale(100%);">🔀</span> Losowo', class: 'btn-secondary' },
-      { id: 'playlist-clear-button', html: '<span style="filter: grayscale(100%);">✕</span> Wyczyść playlistę', class: 'btn-danger' }
+      { id: 'playlist-clear-button', html: '<span style="filter: grayscale(100%);">✕</span> Clear Playlist', class: 'btn-danger' }
     ];
     buttons.forEach(btnData => {
       const button = createUIElement('button', {
