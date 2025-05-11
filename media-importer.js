@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.2.9 - Performance Optimizations (Event Delegation, DocumentFragment, Throttling)
+ * Version 0.3.0 - Video Editing Features Removed
  */
 
 const MediaModule = (() => {
@@ -18,9 +18,7 @@ const MediaModule = (() => {
     STORAGE_KEY: 'flStudioWallpaper_media_v6',
     STORAGE_KEY_OLD: 'flStudioWallpaper_media_v5',
     VIDEO_METADATA_TIMEOUT: 10000,
-    VIDEO_THUMBNAIL_TIMEOUT: 10000,
-    PLAYBACK_SPEED_STEPS: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
-    THROTTLE_LIMIT_MS: 50 // For mousemove events
+    VIDEO_THUMBNAIL_TIMEOUT: 10000
   };
 
   // Application state
@@ -62,50 +60,11 @@ const MediaModule = (() => {
       sourceType: null
     },
     fileInput: null,
-    activeVideoElement: null,
-    activeTrimPreviewVideoElement: null,
-    trimSliderState: {
-      isDraggingStart: false,
-      isDraggingEnd: false,
-      container: null,
-      track: null,
-      startThumb: null,
-      endThumb: null,
-      originalDuration: 0,
-      currentTrimStart: 0,
-      currentTrimEnd: 0,
-      mediaId: null
-    },
-    throttledMouseMove: null // For trim slider
+    activeVideoElement: null
   };
-
-  // --- Utility Functions ---
-  const throttle = (func, limit) => {
-    let lastFunc;
-    let lastRan;
-    return function(...args) {
-      const context = this;
-      if (!lastRan) {
-        func.apply(context, args);
-        lastRan = Date.now();
-      } else {
-        clearTimeout(lastFunc);
-        lastFunc = setTimeout(function() {
-          if ((Date.now() - lastRan) >= limit) {
-            func.apply(context, args);
-            lastRan = Date.now();
-          }
-        }, limit - (Date.now() - lastRan));
-      }
-    };
-  };
-
 
   // Initialization
   const init = () => {
-    // Throttle the mouse move handler for the trim slider
-    state.throttledMouseMove = throttle(handleGlobalMouseMoveForTrimSlider, CONSTANTS.THROTTLE_LIMIT_MS);
-
     document.addEventListener('DOMContentLoaded', () => {
       // Cache main menu element for will-change optimization
       state.dom.mainMenu = document.getElementById('main-menu');
@@ -118,12 +77,6 @@ const MediaModule = (() => {
     document.addEventListener('keyup', (e) => {
       if (e.key === 'Shift') state.selection.shiftKeyActive = false;
     });
-
-    document.addEventListener('mouseup', handleGlobalMouseUpForTrimSlider);
-    document.addEventListener('touchend', handleGlobalMouseUpForTrimSlider);
-    // Use the throttled version for mousemove and touchmove
-    document.addEventListener('mousemove', (e) => state.throttledMouseMove(e));
-    document.addEventListener('touchmove', (e) => state.throttledMouseMove(e), { passive: false });
   };
 
   const initMediaImporter = () => {
@@ -202,8 +155,8 @@ const MediaModule = (() => {
     if (options.multiple) element.multiple = options.multiple;
     if (options.style) Object.assign(element.style, options.style);
     if (options.attributes) Object.entries(options.attributes).forEach(([key, value]) => element.setAttribute(key, value));
-    // Remove direct event listeners setup here for elements that will use delegation
-    if (options.events && (tag === 'input' && options.type === 'file')) { // Only for file input or non-delegated
+    // Handle event listeners
+    if (options.events) {
       Object.entries(options.events).forEach(([event, handler]) => element.addEventListener(event, handler));
     }
     return element;
@@ -331,12 +284,20 @@ const MediaModule = (() => {
     const playlistContainer = createUIElement('div', {
       id: 'playlist-container',
       // Drag/drop events are fine on the container itself
-      events: {
-        dragover: handlePlaylistDragOver, drop: handlePlaylistDrop,
-        dragenter: (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = 'rgba(60, 60, 60, 0.3)'; },
-        dragleave: (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = ''; }
-      }
     });
+
+    // Add drag/drop event listeners
+    playlistContainer.addEventListener('dragover', handlePlaylistDragOver);
+    playlistContainer.addEventListener('drop', handlePlaylistDrop);
+    playlistContainer.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      playlistContainer.style.backgroundColor = 'rgba(60, 60, 60, 0.3)';
+    });
+    playlistContainer.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      playlistContainer.style.backgroundColor = '';
+    });
+
     state.dom.playlistEmptyState = createUIElement('div', { id: 'playlist-empty-state', textContent: 'Drag your media here to create a playlist' });
     playlistContainer.appendChild(state.dom.playlistEmptyState);
     section.appendChild(title);
@@ -399,10 +360,7 @@ const MediaModule = (() => {
         const media = state.mediaLibrary.find(m => m.id === mediaId);
         if (!media) return;
 
-        if (e.target.closest('.media-settings-btn')) {
-          e.stopPropagation();
-          openMediaSettingsDialog(media);
-        } else if (e.target.closest('.media-delete-btn')) {
+        if (e.target.closest('.media-delete-btn')) {
           e.stopPropagation();
           e.preventDefault();
           handleMediaDelete(media);
@@ -456,7 +414,6 @@ const MediaModule = (() => {
     }
   };
 
-
   // Media Management Functions
   const handleFileSelect = async (files) => {
     if (!files || files.length === 0) return;
@@ -484,10 +441,7 @@ const MediaModule = (() => {
     const type = CONSTANTS.SUPPORTED_TYPES.video.includes(file.type) ? 'video' : 'image';
     const mediaItem = {
       id, name: file.name, type, mimeType: file.type, size: file.size, url, dateAdded: Date.now(), thumbnail: null,
-      settings: {
-        volume: 0, playbackRate: 1, originalDuration: null,
-        trimStart: 0, trimEnd: null
-      },
+      settings: {}
     };
     state.mediaLibrary.push(mediaItem);
     try {
@@ -495,17 +449,6 @@ const MediaModule = (() => {
     } catch (err) {
       console.warn(`Error generating thumbnail for ${mediaItem.name}:`, err);
       mediaItem.thumbnail = createFallbackThumbnail(mediaItem.type);
-    }
-    if (type === 'video') {
-      try {
-        const duration = await getVideoDuration(mediaItem.url);
-        mediaItem.settings.originalDuration = duration;
-        mediaItem.settings.trimEnd = duration;
-      } catch (err) {
-        console.warn(`Error getting video duration for ${mediaItem.name}:`, err);
-        mediaItem.settings.originalDuration = 0;
-        mediaItem.settings.trimEnd = 0;
-      }
     }
   };
 
@@ -542,6 +485,7 @@ const MediaModule = (() => {
       }
     });
   };
+
   const generateThumbnail = (mediaItem, file) => {
     return new Promise((resolve, reject) => {
       if (mediaItem.type === 'image') {
@@ -554,6 +498,7 @@ const MediaModule = (() => {
       } else reject(new Error(`Unsupported type for thumbnail generation: ${mediaItem.type}`));
     });
   };
+
   const generateVideoThumbnail = (videoUrl, videoName) => {
     return new Promise((resolve, reject) => {
       const video = document.createElement('video');
@@ -611,6 +556,7 @@ const MediaModule = (() => {
       catch (e) { cleanupAndReject(`Error setting video source for thumbnail: ${videoName}. Error: ${e.message}`); }
     });
   };
+
   const createFallbackThumbnail = (type = 'media') => {
     const canvas = document.createElement('canvas');
     canvas.width = CONSTANTS.THUMBNAIL_DIMENSIONS.width; canvas.height = CONSTANTS.THUMBNAIL_DIMENSIONS.height;
@@ -623,6 +569,7 @@ const MediaModule = (() => {
     else ctx.fillText(type.toUpperCase(), canvas.width / 2, canvas.height / 2);
     return canvas.toDataURL('image/png');
   };
+
   const drawPlayButton = (ctx, width, height, color = 'rgba(255, 255, 255, 0.7)') => {
     ctx.fillStyle = color;
     const centerX = width / 2; const centerY = height / 2;
@@ -691,12 +638,7 @@ const MediaModule = (() => {
     const badge = createUIElement('div', { className: 'media-type-badge', textContent: media.type.toUpperCase() });
     thumbnail.appendChild(badge);
 
-    // Buttons are part of the template, events handled by delegation
-    const settingsBtn = createUIElement('button', {
-      className: 'media-settings-btn btn btn-icon', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42-.12-.64l2 3.46c.12.22.39.3.61.22l2.49 1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22-.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>',
-      attributes: { 'aria-label': `Settings for ${media.name}` }
-    });
-    thumbnail.appendChild(settingsBtn);
+    // Only delete button, no settings button anymore
     const deleteBtn = createUIElement('button', {
       className: 'media-delete-btn btn btn-icon btn-danger', innerHTML: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
       attributes: { 'aria-label': `Delete ${media.name}` }
@@ -709,44 +651,16 @@ const MediaModule = (() => {
   // Handler for delegated media delete
   const handleMediaDelete = (media) => {
     const mediaId = media.id;
-    const performDelete = (idToDelete) => deleteMedia(idToDelete);
-    const performMultipleDelete = (idsToDelete) => { idsToDelete.forEach(id => deleteMedia(id, true)); clearSelection(); };
-    const useCustomModal = typeof WallpaperApp !== 'undefined' && WallpaperApp.UI && typeof WallpaperApp.UI.showModal === 'function';
 
     if (state.selection.items.has(mediaId) && state.selection.items.size > 1) {
-      if (useCustomModal) {
-        WallpaperApp.UI.showModal({
-          title: 'Confirm Deletion',
-          content: `Are you sure you want to delete ${state.selection.items.size} selected items? This action cannot be undone.`,
-          footerButtons: [
-            { text: 'Delete', classes: 'btn-danger', onClick: () => { performMultipleDelete(Array.from(state.selection.items)); return true; } },
-            { text: 'Cancel', classes: 'btn-secondary', onClick: () => true }
-          ]
-        });
-      } else {
-        if (confirm(`Delete ${state.selection.items.size} selected items? This action cannot be undone.`)) {
-          performMultipleDelete(Array.from(state.selection.items));
-        }
-      }
+      // Delete multiple selected items without confirmation
+      Array.from(state.selection.items).forEach(id => deleteMedia(id, true));
+      clearSelection();
     } else {
-      // For single delete, confirm directly or use modal
-      if (useCustomModal) {
-        WallpaperApp.UI.showModal({
-          title: 'Confirm Deletion',
-          content: `Are you sure you want to delete "${media.name}"? This action cannot be undone.`,
-          footerButtons: [
-            { text: 'Delete', classes: 'btn-danger', onClick: () => { performDelete(mediaId); return true; } },
-            { text: 'Cancel', classes: 'btn-secondary', onClick: () => true }
-          ]
-        });
-      } else {
-        if (confirm(`Delete "${media.name}"? This action cannot be undone.`)) {
-          performDelete(mediaId);
-        }
-      }
+      // Delete single item without confirmation
+      deleteMedia(mediaId);
     }
   };
-
 
   // Selection Management
   const handleThumbnailClick = (e, media, thumbnailElement) => { // thumbnailElement is passed from delegation
@@ -802,388 +716,35 @@ const MediaModule = (() => {
     });
   };
 
-  // Media Settings Dialog
-  const openMediaSettingsDialog = (media) => {
-    const existingDialog = document.getElementById('media-settings-dialog-backdrop');
-    if (existingDialog) existingDialog.remove();
-    const backdrop = createUIElement('div', { id: 'media-settings-dialog-backdrop', className: 'media-settings-dialog-backdrop acrylic acrylic-dark' });
-    const dialog = createUIElement('div', { id: 'media-settings-dialog', className: 'media-settings-dialog' });
-    setTimeout(() => { dialog.classList.add('open'); backdrop.classList.add('open'); }, 10);
-    createDialogContent(dialog, media, backdrop);
-    backdrop.appendChild(dialog);
-    document.body.appendChild(backdrop);
-    const firstInput = dialog.querySelector('input, textarea, select, video');
-    if (firstInput) firstInput.focus();
-
-    if (media.type === 'video') {
-      setTimeout(() => initCustomTrimSlider(media), 50);
-    }
-  };
-
-  const createDialogContent = (dialog, media, backdrop) => {
-    const header = createUIElement('div', { className: 'media-settings-dialog-header' });
-    const titleText = `Settings: ${media.name}`;
-    const title = createUIElement('h3', { textContent: titleText.length > 50 ? titleText.substring(0, 47) + '...' : titleText });
-    const closeBtn = createUIElement('button', {
-      className: 'btn btn-icon dialog-close-btn', innerHTML: '&times;',
-      attributes: { 'aria-label': 'Close settings' }, events: { click: () => closeDialog(dialog, backdrop) }
-    });
-    header.appendChild(title); header.appendChild(closeBtn); dialog.appendChild(header);
-
-    const body = createUIElement('div', { className: 'media-settings-dialog-body' });
-
-    const nameGroup = createFormGroup('Change name:', 'text', media.name, `media-name-${media.id}`);
-    body.appendChild(nameGroup);
-
-    if (media.type === 'video') {
-      const trimSection = createUIElement('div', { className: 'form-group trim-section-container' });
-      const trimTitle = createUIElement('h4', { textContent: 'Video trim:', style: { marginBottom: '10px', fontSize: '1em', fontWeight: '600' } });
-      trimSection.appendChild(trimTitle);
-
-      const previewVideo = createUIElement('video', {
-        id: `media-trim-preview-${media.id}`,
-        className: 'trim-video-preview',
-        src: media.url,
-        muted: true,
-        controls: false,
-        style: { width: '100%', maxHeight: '200px', backgroundColor: '#000', borderRadius: '4px', marginBottom: '10px' }
-      });
-      previewVideo.addEventListener('loadedmetadata', () => {
-        const duration = previewVideo.duration;
-        state.trimSliderState.originalDuration = duration;
-        updateTrimSliderThumbs(media.settings.trimStart, media.settings.trimEnd ?? duration, duration);
-        updateTrimPreviewTimeDisplay(media.id, media.settings.trimStart, media.settings.trimEnd ?? duration);
-        previewVideo.currentTime = media.settings.trimStart;
-      });
-      previewVideo.addEventListener('timeupdate', () => {
-        if (state.activeTrimPreviewVideoElement && state.activeTrimPreviewVideoElement.dataset.mediaId === media.id) {
-          const currentTrimStart = state.trimSliderState.currentTrimStart;
-          const currentTrimEnd = state.trimSliderState.currentTrimEnd;
-          if (previewVideo.currentTime < currentTrimStart && !previewVideo.seeking) {
-            previewVideo.currentTime = currentTrimStart;
-          }
-          if (previewVideo.currentTime >= currentTrimEnd && !previewVideo.seeking) {
-            previewVideo.currentTime = currentTrimStart;
-            if(previewVideo.paused) previewVideo.play().catch(e=>console.warn("Preview play error", e));
-          }
-        }
-      });
-      state.activeTrimPreviewVideoElement = previewVideo;
-      state.activeTrimPreviewVideoElement.dataset.mediaId = media.id;
-      trimSection.appendChild(previewVideo);
-
-      const sliderInteractiveArea = createUIElement('div', {
-        id: `trim-slider-interactive-area-${media.id}`,
-        className: 'trim-slider-interactive-area'
-      });
-      trimSection.appendChild(sliderInteractiveArea);
-
-      const trimValuesDisplay = createUIElement('div', { className: 'trim-values-display', style: { fontSize: '0.85em', color: 'rgba(255,255,255,0.7)', marginTop: '5px', textAlign: 'center' } });
-      trimValuesDisplay.innerHTML =
-          `Start: <span id="trim-start-value-display-${media.id}">${formatTime(media.settings.trimStart)}</span> | ` +
-          `End: <span id="trim-end-value-display-${media.id}">${formatTime(media.settings.trimEnd ?? media.settings.originalDuration)}</span> | ` +
-          `Duration: <span id="trimmed-duration-display-${media.id}">${formatTime((media.settings.trimEnd ?? media.settings.originalDuration) - media.settings.trimStart)}</span>`;
-      trimSection.appendChild(trimValuesDisplay);
-
-      const originalDurationDisplay = createUIElement('div', {
-        className: 'setting-description', style: {textAlign: 'center', marginTop: '2px'},
-        textContent: `Original clip length: ${formatTime(media.settings?.originalDuration ?? 0)}`
-      });
-      trimSection.appendChild(originalDurationDisplay);
-      body.appendChild(trimSection);
-      body.appendChild(createDivider());
-    }
-
-    if (media.type === 'video') {
-      const currentVolumeNormalized = media.settings?.volume ?? 0;
-      const volumeGroup = createSliderControl(
-          'Volume (0-100):',
-          `media-volume-${media.id}`,
-          Math.round(currentVolumeNormalized * 100), 0, 100, 1,
-          null, // No live update needed, save handles it
-          (value) => `${value}`
-      );
-      body.appendChild(volumeGroup);
-
-      const currentPlaybackRate = media.settings?.playbackRate ?? 1.0;
-      const speedGroup = createUIElement('div', { className: 'form-group' });
-      const speedLabel = createUIElement('label', { htmlFor: `media-rate-${media.id}`, textContent: 'Playback speed:' });
-      const speedSliderContainer = createUIElement('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' }});
-      const speedSlider = createUIElement('input', {
-        type: 'range', id: `media-rate-${media.id}`,
-        min: "0", max: (CONSTANTS.PLAYBACK_SPEED_STEPS.length - 1).toString(), step: "1",
-        value: CONSTANTS.PLAYBACK_SPEED_STEPS.indexOf(currentPlaybackRate).toString()
-      });
-      const speedDatalistId = `media-rate-datalist-${media.id}`;
-      speedSlider.setAttribute('list', speedDatalistId);
-      const speedDatalist = createUIElement('datalist', { id: speedDatalistId });
-      CONSTANTS.PLAYBACK_SPEED_STEPS.forEach((_, index) => {
-        const option = createUIElement('option', { value: index.toString() });
-        speedDatalist.appendChild(option);
-      });
-
-      const speedValueDisplay = createUIElement('span', {
-        id: `media-rate-value-${media.id}`,
-        textContent: `${currentPlaybackRate.toFixed(2)}x`,
-        style: { minWidth: '50px', textAlign: 'right' }
-      });
-
-      speedSlider.addEventListener('input', (e) => { // Direct listener here is fine for UI update
-        const selectedSpeed = CONSTANTS.PLAYBACK_SPEED_STEPS[parseInt(e.target.value)];
-        document.getElementById(`media-rate-value-${media.id}`).textContent = `${selectedSpeed.toFixed(2)}x`;
-      });
-
-      speedSliderContainer.appendChild(speedSlider);
-      speedSliderContainer.appendChild(speedValueDisplay);
-      speedGroup.appendChild(speedLabel);
-      speedGroup.appendChild(speedSliderContainer);
-      speedGroup.appendChild(speedDatalist);
-      body.appendChild(speedGroup);
-    }
-
-    const settingsTooltip = createUIElement('div', { className: 'settings-tooltip', textContent: 'Settings apply to playback from library and playlist.' });
-    body.appendChild(settingsTooltip);
-
-    const navButtonsContainer = createUIElement('div', { style: { display: 'flex', gap: '10px', marginTop: '20px' } });
-    const effectsLink = createUIElement('button', {
-      textContent: 'EFFECTS', className: 'btn btn-secondary setting-btn', style: { flex: '1' },
-      events: { click: () => { closeBtn.click(); document.getElementById('effects-quick-nav-button')?.click(); }}
-    });
-    navButtonsContainer.appendChild(effectsLink);
-    body.appendChild(navButtonsContainer);
-    dialog.appendChild(body);
-
-    const footer = createUIElement('div', { className: 'media-settings-dialog-footer' });
-    const saveBtn = createUIElement('button', {
-      className: 'btn btn-primary', textContent: 'Save Changes',
-      events: { click: () => saveMediaSettings(media, dialog, backdrop) }
-    });
-    const cancelBtn = createUIElement('button', {
-      className: 'btn btn-secondary', textContent: 'Cancel', events: { click: () => closeBtn.click() }
-    });
-    footer.appendChild(cancelBtn); footer.appendChild(saveBtn); dialog.appendChild(footer);
-  };
-
-  const initCustomTrimSlider = (media) => {
-    const sliderArea = document.getElementById(`trim-slider-interactive-area-${media.id}`);
-    if (!sliderArea) {
-      console.error("Trim slider area not found for media:", media.id);
-      return;
-    }
-    sliderArea.innerHTML = '';
-
-    const track = createUIElement('div', { className: 'trim-slider-track' });
-    const startThumb = createUIElement('div', { id: `trim-thumb-start-${media.id}`, className: 'trim-slider-thumb start-thumb' });
-    const endThumb = createUIElement('div', { id: `trim-thumb-end-${media.id}`, className: 'trim-slider-thumb end-thumb' });
-
-    sliderArea.appendChild(track);
-    sliderArea.appendChild(startThumb);
-    sliderArea.appendChild(endThumb);
-
-    state.trimSliderState.container = sliderArea;
-    state.trimSliderState.track = track;
-    state.trimSliderState.startThumb = startThumb;
-    state.trimSliderState.endThumb = endThumb;
-    state.trimSliderState.originalDuration = media.settings.originalDuration || 0;
-    state.trimSliderState.currentTrimStart = media.settings.trimStart || 0;
-    state.trimSliderState.currentTrimEnd = media.settings.trimEnd || state.trimSliderState.originalDuration;
-    state.trimSliderState.mediaId = media.id;
-
-    updateTrimSliderThumbs(state.trimSliderState.currentTrimStart, state.trimSliderState.currentTrimEnd, state.trimSliderState.originalDuration);
-
-    const makeThumbDraggable = (thumbElement, isStartThumb) => {
-      const onDown = (e) => {
-        e.preventDefault();
-        if (isStartThumb) state.trimSliderState.isDraggingStart = true;
-        else state.trimSliderState.isDraggingEnd = true;
-        thumbElement.classList.add('dragging');
-        // Add class to body to style cursor globally during drag
-        document.body.classList.add('slider-thumb-dragging');
-
-      };
-      thumbElement.addEventListener('mousedown', onDown);
-      thumbElement.addEventListener('touchstart', onDown, { passive: false });
-    };
-
-    makeThumbDraggable(startThumb, true);
-    makeThumbDraggable(endThumb, false);
-  };
-
-  const handleGlobalMouseMoveForTrimSlider = (e) => { // This is the raw handler, now throttled
-    if (!state.trimSliderState.isDraggingStart && !state.trimSliderState.isDraggingEnd) return;
-    // No e.preventDefault() here if passive:false is not set on touchmove,
-    // but for consistency and to ensure it works with touch, it's good practice.
-    // However, if this throttled function is called from an event listener that already did preventDefault, it's fine.
-    // For touchmove, {passive: false} is set on the listener, so preventDefault is allowed.
-    if (e.cancelable) e.preventDefault();
-
-
-    const { container, track, startThumb, endThumb, originalDuration, mediaId } = state.trimSliderState;
-    if (!container || !track || !startThumb || !endThumb || !mediaId) return;
-
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const trackRect = track.getBoundingClientRect();
-    let newX = clientX - trackRect.left;
-    const trackWidth = track.offsetWidth;
-
-    newX = Math.max(0, Math.min(newX, trackWidth));
-    let newTime = (newX / trackWidth) * originalDuration;
-
-    if (state.trimSliderState.isDraggingStart) {
-      newTime = Math.min(newTime, state.trimSliderState.currentTrimEnd - 0.1);
-      newTime = Math.max(0, newTime);
-      state.trimSliderState.currentTrimStart = newTime;
-      startThumb.style.left = `${(newTime / originalDuration) * 100}%`;
-    } else if (state.trimSliderState.isDraggingEnd) {
-      newTime = Math.max(newTime, state.trimSliderState.currentTrimStart + 0.1);
-      newTime = Math.min(originalDuration, newTime);
-      state.trimSliderState.currentTrimEnd = newTime;
-      endThumb.style.left = `${(newTime / originalDuration) * 100}%`;
-    }
-    updateTrimPreviewTimeDisplay(mediaId, state.trimSliderState.currentTrimStart, state.trimSliderState.currentTrimEnd);
-
-    if (state.activeTrimPreviewVideoElement && state.activeTrimPreviewVideoElement.dataset.mediaId === mediaId) {
-      if (state.trimSliderState.isDraggingStart) {
-        state.activeTrimPreviewVideoElement.currentTime = state.trimSliderState.currentTrimStart;
-      }
-      if (state.activeTrimPreviewVideoElement.paused) {
-        // Only play if it was paused due to seeking, not if user explicitly paused it.
-        // This logic might need refinement based on desired UX.
-        // state.activeTrimPreviewVideoElement.play().catch(e=>console.warn("preview play error", e));
-      }
-    }
-  };
-
-  const handleGlobalMouseUpForTrimSlider = () => {
-    if (state.trimSliderState.startThumb) state.trimSliderState.startThumb.classList.remove('dragging');
-    if (state.trimSliderState.endThumb) state.trimSliderState.endThumb.classList.remove('dragging');
-    state.trimSliderState.isDraggingStart = false;
-    state.trimSliderState.isDraggingEnd = false;
-    document.body.classList.remove('slider-thumb-dragging'); // Remove global cursor style
-  };
-
-  const updateTrimSliderThumbs = (trimStart, trimEnd, duration) => {
-    if (!state.trimSliderState.startThumb || !state.trimSliderState.endThumb || duration <= 0) return;
-    const startPercent = (trimStart / duration) * 100;
-    const endPercent = (trimEnd / duration) * 100;
-    // Ensure thumbs don't visually cross due to percentage rounding
-    const finalStartPercent = Math.max(0, Math.min(100, startPercent));
-    const finalEndPercent = Math.max(0, Math.min(100, endPercent));
-
-    state.trimSliderState.startThumb.style.left = `${finalStartPercent}%`;
-    state.trimSliderState.endThumb.style.left = `${finalEndPercent}%`;
-  };
-
-  const updateTrimPreviewTimeDisplay = (mediaId, startTime, endTime) => {
-    const startDisplay = document.getElementById(`trim-start-value-display-${mediaId}`);
-    const endDisplay = document.getElementById(`trim-end-value-display-${mediaId}`);
-    const durationDisplay = document.getElementById(`trimmed-duration-display-${mediaId}`);
-
-    if (startDisplay) startDisplay.textContent = formatTime(startTime);
-    if (endDisplay) endDisplay.textContent = formatTime(endTime);
-    if (durationDisplay) durationDisplay.textContent = formatTime(Math.max(0, endTime - startTime));
-  };
-
-  const createFormGroup = (labelText, inputType, inputValue, inputId, options = {}) => {
-    const group = createUIElement('div', { className: 'form-group' });
-    const label = createUIElement('label', { htmlFor: inputId, textContent: labelText });
-    const input = createUIElement('input', { type: inputType, id: inputId, value: inputValue, ...options });
-    if (options.step) input.step = options.step;
-    // Add direct event listeners for form inputs if needed for immediate UI feedback (not covered by general delegation)
-    if (options.events) {
-      Object.entries(options.events).forEach(([event, handler]) => input.addEventListener(event, handler));
-    }
-    group.appendChild(label); group.appendChild(input);
-    return group;
-  };
-
-  const createSliderControl = (labelText, inputId, defaultValue, min, max, step, onInput, formatValue) => {
-    const group = createUIElement('div', { className: 'form-group' });
-    const label = createUIElement('label', { htmlFor: inputId, textContent: labelText });
-    const inputContainer = createUIElement('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' }});
-    const input = createUIElement('input', {
-      type: 'range', id: inputId, min: min.toString(), max: max.toString(), step: step.toString(), value: defaultValue.toString(),
-      style: { flexGrow: '1'}
-    });
-    const valueDisplay = createUIElement('span', { textContent: formatValue(defaultValue), style: { minWidth: '40px', textAlign: 'right'} });
-
-    // Direct listener for immediate UI update of the value display
-    input.addEventListener('input', (e) => {
-      const value = e.target.value;
-      valueDisplay.textContent = formatValue(value);
-      if (onInput) onInput(value); // For any additional live logic
-    });
-
-    inputContainer.appendChild(input); inputContainer.appendChild(valueDisplay);
-    group.appendChild(label); group.appendChild(inputContainer);
-    return group;
-  };
-
-  const saveMediaSettings = (media, dialog, backdrop) => {
-    media.name = document.getElementById(`media-name-${media.id}`).value.trim() || media.name;
-    if (media.type === 'video') {
-      if (!media.settings) media.settings = {};
-      media.settings.volume = parseFloat(document.getElementById(`media-volume-${media.id}`).value) / 100;
-
-      const speedSliderValue = document.getElementById(`media-rate-${media.id}`).value;
-      media.settings.playbackRate = CONSTANTS.PLAYBACK_SPEED_STEPS[parseInt(speedSliderValue)];
-
-      media.settings.trimStart = state.trimSliderState.currentTrimStart;
-      media.settings.trimEnd = state.trimSliderState.currentTrimEnd;
-
-      const originalDuration = media.settings.originalDuration || 0;
-      media.settings.trimStart = Math.max(0, Math.min(media.settings.trimStart, originalDuration));
-      media.settings.trimEnd = Math.max(media.settings.trimStart, Math.min(media.settings.trimEnd, originalDuration));
-      if (isNaN(media.settings.trimStart)) media.settings.trimStart = 0;
-      if (isNaN(media.settings.trimEnd) || media.settings.trimEnd <= media.settings.trimStart) media.settings.trimEnd = originalDuration;
-
-      if (state.activeVideoElement && state.activeVideoElement.dataset.mediaId === media.id) {
-        state.activeVideoElement.volume = media.settings.volume;
-        state.activeVideoElement.muted = (media.settings.volume === 0);
-        state.activeVideoElement.playbackRate = media.settings.playbackRate;
-        // Adjust current time if playing and outside new trim range
-        if (!state.activeVideoElement.paused) {
-          if (state.activeVideoElement.currentTime < media.settings.trimStart || state.activeVideoElement.currentTime > media.settings.trimEnd) {
-            state.activeVideoElement.currentTime = media.settings.trimStart;
-          }
-        }
-      }
-    }
-    updateMediaGallery();
-    updatePlaylistUI();
-    saveMediaList();
-    showNotification('Settings saved!', 'success');
-    closeDialog(dialog, backdrop);
-  };
-
-  const closeDialog = (dialog, backdrop) => {
-    dialog.classList.remove('open'); backdrop.classList.remove('open');
-    state.activeTrimPreviewVideoElement = null;
-    state.trimSliderState.isDraggingStart = false;
-    state.trimSliderState.isDraggingEnd = false;
-    state.trimSliderState.container = null;
-    state.trimSliderState.track = null;
-    state.trimSliderState.startThumb = null;
-    state.trimSliderState.endThumb = null;
-    state.trimSliderState.mediaId = null;
-    document.body.classList.remove('slider-thumb-dragging');
-
-    setTimeout(() => {
-      if (backdrop.parentElement) {
-        backdrop.remove();
-      }
-    }, 300);
-  };
-
   // Playlist Management
   const handlePlaylistDragOver = (e) => {
     e.preventDefault();
-    const isReordering = e.dataTransfer.types.includes('application/json') && JSON.parse(e.dataTransfer.getData('application/json') || '{}').type === 'playlist-reorder';
-    const isAddingNew = e.dataTransfer.types.includes('text/plain') || (e.dataTransfer.types.includes('application/json') && JSON.parse(e.dataTransfer.getData('application/json') || '{}').type === 'multiple-media');
-    if (isReordering) e.dataTransfer.dropEffect = 'move';
-    else if (isAddingNew) e.dataTransfer.dropEffect = 'copy';
-    else e.dataTransfer.dropEffect = 'none';
+
+    try {
+      // Check if it's a reorder operation or adding new media
+      let isReordering = false;
+      let isAddingNew = false;
+
+      if (e.dataTransfer.types.includes('application/json')) {
+        const jsonData = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
+        isReordering = jsonData.type === 'playlist-reorder';
+        isAddingNew = jsonData.type === 'multiple-media';
+      }
+
+      if (!isReordering && !isAddingNew) {
+        // Check for single media drop
+        isAddingNew = e.dataTransfer.types.includes('text/plain');
+      }
+
+      if (isReordering) e.dataTransfer.dropEffect = 'move';
+      else if (isAddingNew) e.dataTransfer.dropEffect = 'copy';
+      else e.dataTransfer.dropEffect = 'none';
+    } catch (err) {
+      // If we can't parse the data during dragover, assume it's a text/plain drag
+      e.dataTransfer.dropEffect = 'copy';
+    }
   };
+
   const handlePlaylistDrop = (e) => {
     e.preventDefault(); e.currentTarget.style.backgroundColor = '';
     try {
@@ -1231,6 +792,7 @@ const MediaModule = (() => {
       }
     } catch (err) { console.error('Error in handlePlaylistDrop:', err); showNotification('Error adding item to playlist.', 'error'); }
   };
+
   const addToPlaylist = (mediaId, insertAtIndex = -1) => {
     const media = state.mediaLibrary.find(m => m.id === mediaId);
     if (!media) { showNotification(`Media ID ${mediaId} not found in library.`, 'warning'); return; }
@@ -1243,6 +805,7 @@ const MediaModule = (() => {
     if (wasEmpty && state.playlist.items.length > 0) state.playlist.currentIndex = 0;
     updatePlaylistUI(); saveMediaList(); showNotification(`Added to playlist: ${media.name}`, 'success');
   };
+
   const removeFromPlaylist = (index) => {
     if (index < 0 || index >= state.playlist.items.length) return;
     const mediaId = state.playlist.items[index];
@@ -1264,8 +827,9 @@ const MediaModule = (() => {
       if (state.playlist.items.length === 0) state.playlist.currentIndex = -1;
     }
     updatePlaylistUI(); saveMediaList();
-    if (media) showNotification(`Removed from playlist: ${media.name}`, 'info');
+    // Notification removed for delete operations
   };
+
   const reorderPlaylistItem = (fromIndex, toIndex) => {
     if (fromIndex < 0 || fromIndex >= state.playlist.items.length || toIndex < 0 || toIndex > state.playlist.items.length || fromIndex === toIndex) return;
     try {
@@ -1284,6 +848,7 @@ const MediaModule = (() => {
       updatePlaylistUI(); saveMediaList();
     } catch (e) { console.error('Error reordering playlist item:', e); showNotification('Error reordering playlist.', 'error'); }
   };
+
   const confirmClearPlaylist = () => {
     if (state.playlist.items.length === 0) {
       showNotification('Playlist is already empty.', 'info');
@@ -1305,6 +870,7 @@ const MediaModule = (() => {
       }
     }
   };
+
   const clearPlaylistLogic = () => {
     try {
       stopPlaylist();
@@ -1358,28 +924,11 @@ const MediaModule = (() => {
       element.src = media.url;
       element.autoplay = true;
       element.loop = loopOverride; // Loop if single play, not if in playlist (unless overridden)
-      element.muted = (media.settings?.volume === 0);
-      element.volume = media.settings?.volume ?? 0;
-      element.playbackRate = media.settings?.playbackRate ?? 1;
+      element.muted = true;
       element.dataset.mediaId = media.id; // For identification
 
-      const trimStart = media.settings?.trimStart ?? 0;
-      const trimEnd = media.settings?.trimEnd ?? media.settings?.originalDuration ?? Infinity;
-      element.currentTime = trimStart; // Start at trim point
-
       element.addEventListener('timeupdate', function() {
-        // 'this' refers to the video element
-        if (this.currentTime >= trimEnd) {
-          if (this.loop) { // If loopOverride was true (single media loop)
-            this.currentTime = trimStart;
-            this.play().catch(e => console.warn("Error re-playing on trim loop:", e));
-          } else if (isPlaylistContext && state.playlist.isPlaying && !this.ended) {
-            // For playlist items, 'ended' event should handle advancing.
-            // This check is more of a fallback or for very short clips where 'ended' might be tricky.
-            // To prevent double advancement, ensure advancingInProgress flag is used in playNextItem.
-            this.pause(); // Pause it, let 'ended' event trigger next.
-          }
-        }
+        // Basic timeupdate handling without trim functionality
       });
 
       Object.assign(element.style, { width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: '0', left: '0' });
@@ -1426,6 +975,7 @@ const MediaModule = (() => {
     playMediaByIndex(state.playlist.currentIndex);
     updatePlaylistUI(); // Update play/pause button text
   };
+
   const pausePlaylist = () => {
     state.playlist.isPlaying = false;
     clearPlaybackTimers();
@@ -1434,6 +984,7 @@ const MediaModule = (() => {
     updatePlaylistUI(); // Update play/pause button text
     showNotification("Playlist stopped.", "info");
   };
+
   const playMediaByIndex = (index) => {
     if (index < 0 || index >= state.playlist.items.length) {
       // If index is out of bounds, but playlist has items, wrap around or stop
@@ -1480,6 +1031,7 @@ const MediaModule = (() => {
     }
     updatePlaylistUI(); // Update current item highlight
   };
+
   const playNextItem = (startIndex = -1) => { // startIndex is for specific cases like error recovery
     if (!state.playlist.isPlaying || state.playlist.items.length === 0) {
       stopPlaylist(); return;
@@ -1517,9 +1069,11 @@ const MediaModule = (() => {
     // Release the advancing lock after a short delay to allow current media to start
     setTimeout(() => { state.playlist.advancingInProgress = false; }, 200);
   };
+
   const clearPlaybackTimers = () => {
     if (state.playlist.playbackTimer) { clearTimeout(state.playlist.playbackTimer); state.playlist.playbackTimer = null; }
   };
+
   const toggleShuffle = () => {
     state.playlist.shuffle = !state.playlist.shuffle;
     if (state.playlist.shuffle) {
@@ -1534,6 +1088,7 @@ const MediaModule = (() => {
     saveMediaList();
     showNotification(state.playlist.shuffle ? 'Shuffle: On' : 'Shuffle: Off', 'info');
   };
+
   const stopPlaylist = (resetIndexAndDisplay = true) => {
     state.playlist.isPlaying = false;
     clearPlaybackTimers();
@@ -1549,6 +1104,7 @@ const MediaModule = (() => {
     updatePlaylistUI(); // Update button states
     state.activeVideoElement = null;
   };
+
   const clearMediaDisplay = () => {
     try {
       clearPlaybackTimers();
@@ -1566,6 +1122,7 @@ const MediaModule = (() => {
       }
     } catch (e) { console.error("Error clearing media display:", e); if (state.dom.mediaContainer) state.dom.mediaContainer.innerHTML = ''; }
   };
+
   const deleteMedia = (id, suppressNotification = false) => {
     const indexInLibrary = state.mediaLibrary.findIndex(m => m.id === id);
     if (indexInLibrary === -1) return;
@@ -1609,7 +1166,6 @@ const MediaModule = (() => {
       stopPlaylist(); // Also stop if it was paused and became empty
     }
 
-
     // If the currently displayed media (even if paused/single play) was the one deleted
     const currentMediaElement = state.dom.mediaContainer.querySelector('img, video');
     if (currentMediaElement && currentMediaElement.src === mediaToDelete.url) {
@@ -1622,7 +1178,7 @@ const MediaModule = (() => {
 
     updateMediaGallery();
     saveMediaList();
-    if (!suppressNotification) { /* Notification removed as per previous request */ }
+    // Notification removed for delete operations
     clearSelection(); // Clear any selection that might have included the deleted item
   };
 
@@ -1654,7 +1210,6 @@ const MediaModule = (() => {
     Array.from(playlistContainer.querySelectorAll('.playlist-item')).forEach(child => child.remove());
     playlistContainer.appendChild(fragment);
 
-
     const shuffleButton = document.getElementById('playlist-shuffle-button');
     if (shuffleButton) {
       shuffleButton.classList.toggle('active', state.playlist.shuffle);
@@ -1667,13 +1222,12 @@ const MediaModule = (() => {
       updateActiveHighlight(state.activeHighlight.mediaId, 'playlist');
     }
   };
+
   const createPlaylistItem = (media, index) => {
     const item = createUIElement('div', {
       className: 'playlist-item',
       attributes: { 'data-id': media.id, 'data-index': index.toString(), draggable: 'true' }
     });
-    // 'current' class will be handled by updateActiveHighlight or similar logic based on state.playlist.currentIndex
-    // if (index === state.playlist.currentIndex) item.classList.add('current'); // This might be better handled in updatePlaylistUI loop
 
     const highlightRing = createUIElement('div', { className: 'media-active-highlight-ring' });
     item.appendChild(highlightRing);
@@ -1684,7 +1238,6 @@ const MediaModule = (() => {
       e.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging');
     });
     item.addEventListener('dragend', function() { this.classList.remove('dragging'); });
-    // dragover, dragleave, drop are on the main playlistContainer
 
     const thumbnailDiv = createUIElement('div', {
       className: 'playlist-item-thumbnail',
@@ -1698,13 +1251,6 @@ const MediaModule = (() => {
     infoContainer.appendChild(nameEl);
     const detailsEl = createUIElement('div', { className: 'playlist-item-details' });
     let detailsText = `${media.type.charAt(0).toUpperCase() + media.type.slice(1)} · ${formatFileSize(media.size)}`;
-    if (media.type === 'video' && media.settings?.originalDuration != null) { // Check for null/undefined originalDuration
-      const trimStart = media.settings.trimStart ?? 0;
-      // Use originalDuration as fallback for trimEnd if it's null/undefined
-      const trimEnd = media.settings.trimEnd ?? media.settings.originalDuration;
-      const displayDuration = Math.max(0, trimEnd - trimStart);
-      detailsText += ` · ${formatTime(displayDuration)} (Trimmed)`;
-    }
     detailsEl.textContent = detailsText;
     infoContainer.appendChild(detailsEl);
     item.appendChild(infoContainer);
@@ -1716,7 +1262,7 @@ const MediaModule = (() => {
     });
     item.appendChild(deleteBtn);
 
-    // Playing indicator (conditionally added in updatePlaylistUI or when item becomes current)
+    // Playing indicator (conditionally added)
     if (index === state.playlist.currentIndex && state.playlist.isPlaying) {
       item.classList.add('current'); // Add current class here
       const playingIndicator = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
@@ -1724,6 +1270,7 @@ const MediaModule = (() => {
     }
     return item;
   };
+
   const updateActiveHighlight = (mediaId, sourceType) => {
     removeAllActiveHighlights();
     if (!mediaId) { state.activeHighlight.mediaId = null; state.activeHighlight.sourceType = null; return; }
@@ -1758,10 +1305,9 @@ const MediaModule = (() => {
 
     if (elementToHighlight) {
       elementToHighlight.classList.add('playing-from-here'); // Animation class
-      // Scroll into view if necessary
-      // elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // Can be too aggressive
     }
   };
+
   const removeAllActiveHighlights = () => {
     document.querySelectorAll('.media-thumbnail.playing-from-here, .playlist-item.playing-from-here').forEach(el => el.classList.remove('playing-from-here'));
     if(state.dom.playlistContainer) {
@@ -1785,6 +1331,7 @@ const MediaModule = (() => {
       localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(storageData));
     } catch (e) { console.error('Failed to save media list:', e); showNotification('Error saving media library. Storage might be full.', 'error'); }
   };
+
   const loadSavedMedia = () => {
     try {
       const savedData = localStorage.getItem(CONSTANTS.STORAGE_KEY);
@@ -1811,13 +1358,7 @@ const MediaModule = (() => {
           ...media,
           url: null, // Will be populated on re-import or if user provides a mechanism
           thumbnail: createFallbackThumbnail(media.type), // Show fallback initially
-          settings: { // Ensure settings object exists and has defaults
-            volume: media.settings?.volume ?? 0,
-            playbackRate: media.settings?.playbackRate ?? 1.0,
-            originalDuration: media.settings?.originalDuration ?? null,
-            trimStart: media.settings?.trimStart ?? 0,
-            trimEnd: media.settings?.trimEnd ?? media.settings?.originalDuration ?? 0,
-          }
+          settings: media.settings || {} // Ensure settings object exists
         };
       });
       state.playlist.items = parsedData.playlist?.items || [];
@@ -1838,16 +1379,19 @@ const MediaModule = (() => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
+
   const formatTime = (totalSeconds) => {
     if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00';
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = Math.floor(totalSeconds % 60);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
+
   const showNotification = (message, type = 'info', duration = 3000) => {
     if (typeof WallpaperApp !== 'undefined' && typeof WallpaperApp.UI?.showNotification === 'function') WallpaperApp.UI.showNotification(message, type, duration);
     else console.log(`[${type?.toUpperCase() || 'INFO'}] ${message}`);
   };
+
   const applyTemporaryHighlight = (element) => {
     if (!element) return;
     element.classList.add('pulse-highlight-effect');
@@ -1859,11 +1403,6 @@ const MediaModule = (() => {
     init,
     getCurrentPlaylist: () => JSON.parse(JSON.stringify(state.playlist)),
     getMediaLibrary: () => JSON.parse(JSON.stringify(state.mediaLibrary)),
-    openMediaSettings: (mediaId) => {
-      const media = state.mediaLibrary.find(m => m.id === mediaId);
-      if (media) openMediaSettingsDialog(media);
-      else showNotification(`Media item with ID ${mediaId} not found.`, 'warning');
-    },
     _getState: () => state // For debugging or advanced access if needed
   };
 })();
