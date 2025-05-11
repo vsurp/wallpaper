@@ -429,7 +429,7 @@
 
       // Menu management functions
       async function closeLevel2Submenus() {
-        return new Promise(resolve => {
+        return new Promise(resolve => { // Removed async from new Promise as it's not needed here
           const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
           if (activeL2Wrapper) {
             const activeL2Submenus = activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active');
@@ -453,7 +453,7 @@
                 activeL2Wrapper.style.display = 'none';
               }
 
-              // Usuń statyczne podświetlenia gdy zamykane jest submenu L2
+              // Remove static highlights when L2 submenu is closed
               if (window.MediaModule && window.MediaModule._getState) {
                 const state = window.MediaModule._getState();
                 if (state.dom.mediaLibrarySection) {
@@ -463,10 +463,14 @@
                   state.dom.playlistSection.classList.remove('static-highlight');
                 }
               }
-
               resolve();
             });
+          } else {
+            resolve(); // Resolve if no L2 wrapper is active
+          }
+        }); // Corrected: Added missing parenthesis for Promise constructor
       }
+
 
       async function closeLevel1Submenus() {
         return new Promise(async resolve => {
@@ -526,7 +530,7 @@
             categoryItems.forEach(ci => ci.classList.remove('selected'));
             if (targetCategoryItem) targetCategoryItem.classList.add('selected');
 
-            afterTransition(submenuWrapperL1, () => {
+            afterTransition(submenuWrapperL1, () => { // This was likely meant to be currentActiveL1Submenu or submenuWrapperL1 based on context
               targetL1Submenu.classList.add('active');
               submenuWrapperL1.style.display = 'block';
               requestAnimationFrame(() => {
@@ -557,7 +561,7 @@
                 afterTransition(submenuWrapperL1, () => resolve(true));
               });
             } else {
-              mainMenu.classList.add('main-menu-submenu-active');
+              mainMenu.classList.add('main-menu-submenu-active'); // Ensure this class is set
               resolve(true);
             }
           }
@@ -588,8 +592,6 @@
           const mediaPlayerL1Submenu = document.getElementById('import-media-submenu');
           const mediaPlayerCategoryItem = document.querySelector('.category-item[data-action="import-media"]');
 
-          // const wasSelected = item.classList.contains('selected'); // Not strictly needed for current logic flow
-
           // Deselect all other category items first
           categoryItems.forEach(catItem => {
             if (catItem !== item) {
@@ -604,16 +606,13 @@
             // Item was deselected
             if (isEffectsAction || isTransitionsAction) {
               await closeLevel2Submenus();
-              // If Media Player L1 is active (which it would be for Effects/Transitions), close it.
               if (mediaPlayerL1Submenu && mediaPlayerL1Submenu.classList.contains('active')) {
-                await closeLevel1Submenus(); // This will also close L2 if open.
+                await closeLevel1Submenus();
               }
-              // Also deselect Media Player if Effects/Transitions are deselected
               if (mediaPlayerCategoryItem) {
                 mediaPlayerCategoryItem.classList.remove('selected');
               }
             } else if (targetL1Submenu && targetL1Submenu.classList.contains('active')) {
-              // If a standard L1 item is deselected, close its submenu
               await closeLevel1Submenus();
             }
             return;
@@ -621,15 +620,12 @@
 
           // Item is now selected
           if (isEffectsAction || isTransitionsAction) {
-            // Special handling for Effects/Transitions:
             if (mediaPlayerCategoryItem) {
-              mediaPlayerCategoryItem.classList.add('selected'); // Ensure Media Player is also selected
+              mediaPlayerCategoryItem.classList.add('selected');
             }
-            // item.classList.add('selected'); // Already handled by toggle above
 
             const l1Opened = await openL1Submenu(mediaPlayerL1Submenu);
             if (l1Opened) {
-              // MODIFIED: Added setTimeout(0) to defer L2 opening slightly
               setTimeout(() => {
                 const internalButtonId = isEffectsAction
                         ? 'effects-quick-nav-button'
@@ -643,7 +639,6 @@
                           isEffectsAction ? 'effects-list-submenu' : 'transitions-list-submenu'
                   );
 
-                  // Dodaj statyczne podświetlenie
                   if (window.MediaModule && window.MediaModule._getState) {
                     const state = window.MediaModule._getState();
                     if (isEffectsAction && state.dom.mediaLibrarySection) {
@@ -653,17 +648,16 @@
                     }
                   }
                 }
-              }, 0); // Delay of 0 milliseconds
+              }, 0);
             }
           } else {
             // Standard L1 submenu handling
-            await closeLevel2Submenus(); // Close any L2 first
+            await closeLevel2Submenus();
             if (targetL1Submenu) {
               await openL1Submenu(targetL1Submenu);
             } else {
-              // If no target L1 (e.g., a button without a submenu), close any existing L1s.
               await closeLevel1Submenus();
-              item.classList.remove('selected'); // And deselect the item if it has no submenu
+              item.classList.remove('selected');
             }
           }
         });
@@ -689,24 +683,23 @@
             i.classList.remove('expanded');
           });
 
-          afterTransition(currentActiveL2Submenu, () => { // Wait for old panel to slide out
+          afterTransition(currentActiveL2Submenu, () => {
             if (currentActiveL2Wrapper && !currentActiveL2Wrapper.contains(currentActiveL2Submenu)) {
-              // If the old submenu is no longer in the active wrapper (e.g. wrapper itself closed), do nothing further here.
+              // If the old submenu is no longer in the active wrapper, do nothing.
             }
-            submenuL2.classList.add('active'); // New panel slides in
+            submenuL2.classList.add('active');
             mainMenu.classList.add('main-menu-l2-active');
           });
         } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
           // Opening a new L2 submenu or re-opening the same L2 submenu
-          if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
+          if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) { // if there was an active L2 and it's not the target, remove active
             currentActiveL2Submenu.classList.remove('active');
           }
 
           submenuL2.classList.add('active');
           submenuWrapperL2.style.display = 'block';
 
-          // MODIFIED: Force a reflow before adding class for transition
-          void submenuWrapperL2.offsetHeight;
+          void submenuWrapperL2.offsetHeight; // Force reflow
 
           requestAnimationFrame(() => {
             submenuWrapperL2.classList.add('active');
@@ -774,7 +767,7 @@
             }
 
             sliderContainer.classList.add('visible');
-            sliderContainer.style.maxHeight = '50px';
+            sliderContainer.style.maxHeight = '50px'; // Make sure this is enough to show the content
             item.classList.add('expanded');
           }
         });
@@ -787,13 +780,14 @@
           categoryItems.forEach(catItem => catItem.classList.remove('selected'));
         });
       });
-          submenuCloseButtonsL2.forEach(button => {
-            button.addEventListener('click', async () => {
-              await closeLevel2Submenus();
-              document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-              document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-            });
-          });
+      submenuCloseButtonsL2.forEach(button => { // Corrected variable name
+        button.addEventListener('click', async () => {
+          await closeLevel2Submenus();
+          // Also deselect 'Effects' or 'Transitions' if their L2 menu is closed
+          document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
+          document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
+        });
+      });
 
       // Global escape key handler
       document.addEventListener('keydown', async (e) => {
@@ -813,8 +807,8 @@
           }
         }
       });
-    })
-  }}});
+    } // End of setupMenuSystem
+  }); // End of DOMContentLoaded
 </script>
 <script src="media-importer.js"></script>
 </body>
