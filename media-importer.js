@@ -720,28 +720,16 @@ const MediaModule = (() => {
   const handlePlaylistDragOver = (e) => {
     e.preventDefault();
 
-    try {
-      // Check if it's a reorder operation or adding new media
-      let isReordering = false;
-      let isAddingNew = false;
-
-      if (e.dataTransfer.types.includes('application/json')) {
-        const jsonData = JSON.parse(e.dataTransfer.getData('application/json') || '{}');
-        isReordering = jsonData.type === 'playlist-reorder';
-        isAddingNew = jsonData.type === 'multiple-media';
-      }
-
-      if (!isReordering && !isAddingNew) {
-        // Check for single media drop
-        isAddingNew = e.dataTransfer.types.includes('text/plain');
-      }
-
-      if (isReordering) e.dataTransfer.dropEffect = 'move';
-      else if (isAddingNew) e.dataTransfer.dropEffect = 'copy';
-      else e.dataTransfer.dropEffect = 'none';
-    } catch (err) {
-      // If we can't parse the data during dragover, assume it's a text/plain drag
+    // During dragover, we can only check types, not read the actual data
+    // Check for available data types instead of trying to parse data
+    if (e.dataTransfer.types.includes('application/json')) {
+      // Could be either multiple-media or playlist-reorder
+      e.dataTransfer.dropEffect = 'move'; // Default to move, will be corrected on drop
+    } else if (e.dataTransfer.types.includes('text/plain')) {
+      // Single media drop
       e.dataTransfer.dropEffect = 'copy';
+    } else {
+      e.dataTransfer.dropEffect = 'none';
     }
   };
 
@@ -791,6 +779,112 @@ const MediaModule = (() => {
         }
       }
     } catch (err) { console.error('Error in handlePlaylistDrop:', err); showNotification('Error adding item to playlist.', 'error'); }
+  };
+
+  // Add these new functions after handlePlaylistDrop function
+
+  const handleMediaGalleryDragOver = (e) => {
+    e.preventDefault();
+
+    // Check if we're dragging a media item
+    if (e.dataTransfer.types.includes('text/plain') || e.dataTransfer.types.includes('application/json')) {
+      e.dataTransfer.dropEffect = 'move';
+
+      // Find the closest media thumbnail
+      const thumbnail = e.target.closest('.media-thumbnail');
+      if (thumbnail) {
+        // Remove previous hover states
+        state.dom.mediaGallery.querySelectorAll('.media-thumbnail').forEach(el => {
+          el.classList.remove('drag-over-left', 'drag-over-right');
+        });
+
+        // Determine which side of the thumbnail we're on
+        const rect = thumbnail.getBoundingClientRect();
+        const isLeftHalf = e.clientX < rect.left + rect.width / 2;
+
+        if (isLeftHalf) {
+          thumbnail.classList.add('drag-over-left');
+        } else {
+          thumbnail.classList.add('drag-over-right');
+        }
+      }
+    }
+  };
+
+  const handleMediaGalleryDrop = (e) => {
+    e.preventDefault();
+
+    // Remove all hover states
+    state.dom.mediaGallery.querySelectorAll('.media-thumbnail').forEach(el => {
+      el.classList.remove('drag-over-left', 'drag-over-right');
+    });
+
+    try {
+      let draggedMediaId;
+      let isMultipleSelection = false;
+
+      // Check for multiple selection first
+      const jsonData = e.dataTransfer.getData('application/json');
+      if (jsonData) {
+        const parsed = JSON.parse(jsonData);
+        if (parsed.type === 'multiple-media') {
+          // For now, we'll just reorder the first item in a multi-selection
+          draggedMediaId = parsed.ids[0];
+          isMultipleSelection = true;
+        }
+      } else {
+        draggedMediaId = e.dataTransfer.getData('text/plain');
+      }
+
+      if (!draggedMediaId) return;
+
+      // Find the drop target
+      const dropTarget = e.target.closest('.media-thumbnail');
+      if (!dropTarget) return;
+
+      const dropTargetId = dropTarget.dataset.id;
+      if (draggedMediaId === dropTargetId) return; // Can't drop on itself
+
+      // Determine drop position
+      const rect = dropTarget.getBoundingClientRect();
+      const isLeftHalf = e.clientX < rect.left + rect.width / 2;
+
+      reorderMediaLibraryItem(draggedMediaId, dropTargetId, isLeftHalf);
+
+    } catch (err) {
+      console.error('Error handling media gallery drop:', err);
+      showNotification('Error reordering media.', 'error');
+    }
+  };
+
+  const reorderMediaLibraryItem = (draggedId, targetId, insertBefore) => {
+    const draggedIndex = state.mediaLibrary.findIndex(m => m.id === draggedId);
+    const targetIndex = state.mediaLibrary.findIndex(m => m.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Remove the dragged item
+    const [draggedItem] = state.mediaLibrary.splice(draggedIndex, 1);
+
+    // Calculate new index
+    let newIndex = targetIndex;
+    if (!insertBefore && draggedIndex < targetIndex) {
+      // If we're inserting after and the dragged item was before the target,
+      // we need to adjust the index since we removed an item
+      newIndex = targetIndex;
+    } else if (!insertBefore) {
+      newIndex = targetIndex + 1;
+    } else if (insertBefore && draggedIndex < targetIndex) {
+      newIndex = targetIndex - 1;
+    }
+
+    // Insert at new position
+    state.mediaLibrary.splice(newIndex, 0, draggedItem);
+
+    // Update UI and save
+    updateMediaGallery();
+    saveMediaList();
+    showNotification('Media reordered.', 'success');
   };
 
   const addToPlaylist = (mediaId, insertAtIndex = -1) => {
@@ -1406,5 +1500,6 @@ const MediaModule = (() => {
     _getState: () => state // For debugging or advanced access if needed
   };
 })();
+
 
 MediaModule.init();
