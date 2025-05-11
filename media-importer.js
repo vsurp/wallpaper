@@ -122,7 +122,7 @@ const MediaModule = (() => {
 
     const importButton = createUIElement('button', {
       className: 'submenu-item import-media-button',
-      textContent: 'IMPORTUJ MEDIA',
+      textContent: 'IMPORT MEDIA',
       attributes: { 'data-action': 'import-media-action' },
       events: { click: () => state.fileInput.click() }
     });
@@ -177,8 +177,8 @@ const MediaModule = (() => {
 
   const createMediaLibrarySection = () => {
     const section = createUIElement('div', { id: 'media-library-section' });
-    const title = createUIElement('h3', { textContent: 'BIBLIOTEKA MEDIÓW' });
-    const selectionInfo = createUIElement('div', { className: 'selection-info', textContent: 'Shift+Click lub przeciągnij, aby zaznaczyć wiele' });
+    const title = createUIElement('h3', { textContent: 'MEDIA LIBRARY' });
+    const selectionInfo = createUIElement('div', { className: 'selection-info', textContent: 'Shift+Click or drag to select multiple' });
     const gallery = createUIElement('div', { id: 'media-gallery' });
     setupGalleryDragSelection(gallery);
     gallery.appendChild(createUIElement('div', { id: 'media-empty-state', textContent: '' }));
@@ -274,16 +274,16 @@ const MediaModule = (() => {
   const createQuickNavSection = () => {
     const section = createUIElement('div', { id: 'quick-nav-section' });
     const effectsButton = createUIElement('button', {
-      id: 'effects-quick-nav-button', textContent: 'EFEKTY', className: 'quick-nav-button btn btn-secondary',
+      id: 'effects-quick-nav-button', textContent: 'EFFECTS', className: 'quick-nav-button btn btn-secondary',
       events: { click: () => {
           if (window.WallpaperApp?.MenuTools?.openL2Submenu) {
             window.WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
             applyTemporaryHighlight(state.dom.mediaLibrarySection);
-          } else showNotification('Funkcja menu (efekty) niedostępna.', 'warning');
+          } else showNotification('Funkcja menu (effects) niedostępna.', 'warning');
         }}
     });
     const transitionsButton = createUIElement('button', {
-      id: 'transitions-quick-nav-button', textContent: 'PRZEJŚCIA', className: 'quick-nav-button btn btn-secondary',
+      id: 'transitions-quick-nav-button', textContent: 'TRANSITIONS', className: 'quick-nav-button btn btn-secondary',
       events: { click: () => {
           if (window.WallpaperApp?.MenuTools?.openL2Submenu) {
             window.WallpaperApp.MenuTools.openL2Submenu('transitions-list-submenu');
@@ -298,7 +298,7 @@ const MediaModule = (() => {
 
   const createPlaylistSection = () => {
     const section = createUIElement('div', { id: 'playlist-section' });
-    const title = createUIElement('h3', { textContent: 'PLAYLISTA' });
+    const title = createUIElement('h3', { textContent: 'PLAYLIST' });
     const playlistContainer = createUIElement('div', {
       id: 'playlist-container',
       events: {
@@ -307,7 +307,7 @@ const MediaModule = (() => {
         dragleave: (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = ''; }
       }
     });
-    playlistContainer.appendChild(createUIElement('div', { id: 'playlist-empty-state', textContent: 'Przeciągnij media tutaj, aby utworzyć playlistę' }));
+    playlistContainer.appendChild(createUIElement('div', { id: 'playlist-empty-state', textContent: 'Drag your media here to create a playlist' }));
     section.appendChild(title);
     section.appendChild(playlistContainer);
     state.dom.playlistContainer = playlistContainer;
@@ -666,9 +666,13 @@ const MediaModule = (() => {
     const body = createUIElement('div', { className: 'media-settings-dialog-body' });
 
     // --- Video Trimming Section (Moved to top) ---
+
+    const nameGroup = createFormGroup('Change name:', 'text', media.name, `media-name-${media.id}`);
+    body.appendChild(nameGroup);
+
     if (media.type === 'video') {
       const trimSection = createUIElement('div', { className: 'form-group trim-section-container' }); // New CSS class
-      const trimTitle = createUIElement('h4', { textContent: 'Przycinanie wideo:', style: { marginBottom: '10px', fontSize: '1em', fontWeight: '600' } });
+      const trimTitle = createUIElement('h4', { textContent: 'Video trim:', style: { marginBottom: '10px', fontSize: '1em', fontWeight: '600' } });
       trimSection.appendChild(trimTitle);
 
       // Video Preview Element
@@ -740,15 +744,11 @@ const MediaModule = (() => {
     }
     // --- End Video Trimming Section ---
 
-
-    const nameGroup = createFormGroup('Nazwa klipu:', 'text', media.name, `media-name-${media.id}`);
-    body.appendChild(nameGroup);
-
     if (media.type === 'video') {
       // Volume Slider
       const currentVolumeNormalized = media.settings?.volume ?? 0;
       const volumeGroup = createSliderControl(
-          'Głośność (0-100):',
+          'Volume (0-100):',
           `media-volume-${media.id}`,
           Math.round(currentVolumeNormalized * 100), 0, 100, 1,
           (value) => { /* Live update if needed, but saveMediaSettings handles main player */ },
@@ -759,7 +759,7 @@ const MediaModule = (() => {
       // Playback Speed Slider with Notches
       const currentPlaybackRate = media.settings?.playbackRate ?? 1.0;
       const speedGroup = createUIElement('div', { className: 'form-group' });
-      const speedLabel = createUIElement('label', { htmlFor: `media-rate-${media.id}`, textContent: 'Prędkość odtwarzania:' });
+      const speedLabel = createUIElement('label', { htmlFor: `media-rate-${media.id}`, textContent: 'Playback speed:' });
       const speedSliderContainer = createUIElement('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' }});
       const speedSlider = createUIElement('input', {
         type: 'range', id: `media-rate-${media.id}`,
@@ -795,13 +795,13 @@ const MediaModule = (() => {
     }
 
 
-    const settingsTooltip = createUIElement('div', { className: 'settings-tooltip', textContent: 'Ustawienia dotyczą odtwarzania z biblioteki i playlisty.' });
+    const settingsTooltip = createUIElement('div', { className: 'settings-tooltip', textContent: 'Settings apply to playback from library and playlist.' });
     body.appendChild(settingsTooltip);
 
 
     const navButtonsContainer = createUIElement('div', { style: { display: 'flex', gap: '10px', marginTop: '20px' } });
     const effectsLink = createUIElement('button', {
-      textContent: 'EFEKTY', className: 'btn btn-secondary setting-btn', style: { flex: '1' },
+      textContent: 'EFFECTS', className: 'btn btn-secondary setting-btn', style: { flex: '1' },
       events: { click: () => { closeBtn.click(); document.getElementById('effects-quick-nav-button')?.click(); }}
     });
     navButtonsContainer.appendChild(effectsLink);
@@ -1121,7 +1121,7 @@ const MediaModule = (() => {
   };
   const confirmClearPlaylist = () => { /* ... (no changes from previous version) ... */
     if (state.playlist.items.length === 0) {
-      showNotification('Playlista jest już pusta.', 'info');
+      showNotification('Playlist is already empty.', 'info');
       return;
     }
     const useCustomModal = typeof WallpaperApp !== 'undefined' && WallpaperApp.UI && typeof WallpaperApp.UI.showModal === 'function';
@@ -1144,7 +1144,7 @@ const MediaModule = (() => {
     try {
       stopPlaylist();
       state.playlist.items = []; state.playlist.currentIndex = -1; state.playlist.playedInShuffle.clear();
-      updatePlaylistUI(); saveMediaList(); showNotification('Playlista wyczyszczona.', 'info');
+      updatePlaylistUI(); saveMediaList(); showNotification('Playlist cleared.', 'info');
     } catch (e) { console.error('Error in clearPlaylistLogic:', e); showNotification('Błąd podczas czyszczenia playlisty.', 'error'); }
   };
 
@@ -1222,7 +1222,7 @@ const MediaModule = (() => {
   };
 
   const playPlaylist = () => { /* ... (no changes from previous version) ... */
-    if (state.playlist.items.length === 0) { showNotification('Playlista jest pusta. Dodaj jakieś media!', 'info'); return; }
+    if (state.playlist.items.length === 0) { showNotification('Playlist is empty add some media!', 'info'); return; }
     if (state.playlist.isPlaying) { pausePlaylist(); return; }
     clearPlaybackTimers(); state.playlist.advancingInProgress = false; state.playlist.isPlaying = true;
     if (state.playlist.shuffle) {
@@ -1239,7 +1239,7 @@ const MediaModule = (() => {
     state.playlist.isPlaying = false; clearPlaybackTimers();
     const videoElement = state.dom.mediaContainer.querySelector('video');
     if (videoElement && !videoElement.paused) videoElement.pause();
-    updatePlaylistUI(); showNotification("Playlista wstrzymana.", "info");
+    updatePlaylistUI(); showNotification("Playlist stopped.", "info");
   };
   const playMediaByIndex = (index) => { /* ... (no changes from previous version) ... */
     if (index < 0 || index >= state.playlist.items.length) {
@@ -1370,7 +1370,7 @@ const MediaModule = (() => {
     if (!playlistContainer || !controlsContainer) { console.error("Playlist UI elements not found, cannot update."); return; }
     Array.from(playlistContainer.querySelectorAll('.playlist-item')).forEach(child => child.remove());
     if (state.playlist.items.length === 0) {
-      if (emptyState) { emptyState.style.display = 'block'; emptyState.textContent = 'Przeciągnij media tutaj lub z biblioteki, aby utworzyć playlistę.'; }
+      if (emptyState) { emptyState.style.display = 'block'; emptyState.textContent = 'Drag media from your library to create a playlist.'; }
       controlsContainer.style.visibility = 'hidden';
     } else {
       if (emptyState) emptyState.style.display = 'none';
