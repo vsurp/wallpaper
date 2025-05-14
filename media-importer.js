@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.3.8 - Contextual Effects & Transitions (Robust Initialization & Logging)
+ * Version 0.4.0 - Professional Transition Zones
  */
 
 const MediaModule = (() => {
@@ -115,7 +115,7 @@ const MediaModule = (() => {
             state.contextualEditing.panelElement.style.display !== 'none' &&
             !state.contextualEditing.panelElement.contains(e.target) &&
             !e.target.closest('.media-thumbnail') &&
-            !e.target.closest('.playlist-item-add-transition')) {
+            !e.target.closest('.playlist-transition-zone')) {
           hideInlinePanel();
         }
       }, true);
@@ -137,7 +137,6 @@ const MediaModule = (() => {
       }
       if (!state.dom.mediaContainer) {
         console.error("[MediaModule] initMediaImporter: CRITICAL - #media-container for playback not found.");
-        // Not returning here, as UI might still be partially buildable for library/playlist.
       }
 
       const menuContent = state.dom.importSubmenu.querySelector('.menu-content');
@@ -163,10 +162,10 @@ const MediaModule = (() => {
   const setupMediaImportUI = (menuContent) => {
     console.log("[MediaModule] setupMediaImportUI: Starting to build UI in .menu-content.");
     try {
-      menuContent.innerHTML = ''; // Clear existing content first
+      menuContent.innerHTML = '';
       console.log("[MediaModule] setupMediaImportUI: .menu-content cleared.");
 
-      setupFileInput(); // Ensures file input is ready
+      setupFileInput();
       console.log("[MediaModule] setupMediaImportUI: File input setup.");
 
       const importButton = createUIElement('button', {
@@ -336,7 +335,7 @@ const MediaModule = (() => {
     playlistContainer.addEventListener('drop', handlePlaylistDrop);
     playlistContainer.addEventListener('dragenter', (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = 'rgba(60, 60, 60, 0.3)'; });
     playlistContainer.addEventListener('dragleave', (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = ''; });
-    state.dom.playlistEmptyState = createUIElement('div', { id: 'playlist-empty-state', textContent: 'Drag media here or click "+" on items to add transitions.' });
+    state.dom.playlistEmptyState = createUIElement('div', { id: 'playlist-empty-state', textContent: 'Drag media here to create a playlist.' });
     playlistContainer.appendChild(state.dom.playlistEmptyState);
     section.appendChild(title);
     section.appendChild(playlistContainer);
@@ -352,7 +351,7 @@ const MediaModule = (() => {
     controlsContainer.innerHTML = '';
     const buttons = [
       { id: 'playlist-play-button', html: '<span style="filter: grayscale(100%);">▶</span> Play All', class: 'btn-primary' },
-      { id: 'playlist-shuffle-button', html: '<span style="filter: grayscale(100%);">🔀</span> Losowo', class: 'btn-secondary' },
+      { id: 'playlist-shuffle-button', html: '<span style="filter: grayscale(100%);">🔀</span> Shuffle', class: 'btn-secondary' },
       { id: 'playlist-clear-button', html: '<span style="filter: grayscale(100%);">✕</span> Clear Playlist', class: 'btn-danger' }
     ];
     buttons.forEach(btnData => {
@@ -423,15 +422,13 @@ const MediaModule = (() => {
     if (state.dom.playlistContainer) {
       state.dom.playlistContainer.addEventListener('click', (e) => {
         const item = e.target.closest('.playlist-item');
-        const addTransitionButton = e.target.closest('.playlist-item-add-transition');
+        const transitionZone = e.target.closest('.playlist-transition-zone');
 
-        if (addTransitionButton && item) {
+        if (transitionZone) {
           e.stopPropagation();
-          const playlistIndex = parseInt(addTransitionButton.dataset.index, 10);
+          const playlistIndex = parseInt(transitionZone.dataset.index, 10);
           if (!isNaN(playlistIndex)) {
-            showInlinePanel(e, playlistIndex, 'transition', addTransitionButton);
-          } else {
-            console.warn("Invalid data-index for transition button on item:", item);
+            showInlinePanel(e, playlistIndex, 'transition', transitionZone);
           }
         } else if (item) {
           hideContextMenu();
@@ -1405,6 +1402,40 @@ const MediaModule = (() => {
     clearSelection();
   };
 
+  const createTransitionZone = (index) => {
+    const zone = createUIElement('div', {
+      className: 'playlist-transition-zone',
+      attributes: { 'data-index': index.toString() }
+    });
+
+    const transitionData = state.playlist.transitions[index];
+    if (transitionData) {
+      const transitionInfo = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionData.transitionId);
+      const transitionDisplay = createUIElement('div', {
+        className: 'transition-display active',
+        innerHTML: `
+          <div class="transition-icon">⚡</div>
+          <div class="transition-name">${transitionInfo?.name || 'Unknown'}</div>
+          <div class="transition-duration">${transitionData.params.duration || '500'}ms</div>
+        `
+      });
+      zone.appendChild(transitionDisplay);
+    } else {
+      const addButton = createUIElement('div', {
+        className: 'transition-add-button',
+        innerHTML: '<div class="transition-add-icon">+</div><div class="transition-add-text">Add Transition</div>'
+      });
+      zone.appendChild(addButton);
+    }
+
+    zone.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showInlinePanel(e, index, 'transition', zone);
+    });
+
+    return zone;
+  };
+
   const updatePlaylistUI = () => {
     const playlistContainer = state.dom.playlistContainer;
     const emptyState = state.dom.playlistEmptyState;
@@ -1419,11 +1450,15 @@ const MediaModule = (() => {
       emptyState.style.display = 'none';
       controlsContainer.style.visibility = 'visible';
       state.playlist.items.forEach((mediaId, index) => {
+        // Add transition zone before each item (including the first one)
+        const transitionZone = createTransitionZone(index);
+        fragment.appendChild(transitionZone);
+
         const media = state.mediaLibrary.find(m => m.id === mediaId);
         if (media) fragment.appendChild(createPlaylistItem(media, index));
       });
     }
-    Array.from(playlistContainer.querySelectorAll('.playlist-item')).forEach(child => child.remove());
+    Array.from(playlistContainer.querySelectorAll('.playlist-item, .playlist-transition-zone')).forEach(child => child.remove());
     playlistContainer.appendChild(fragment);
 
     const shuffleButton = document.getElementById('playlist-shuffle-button');
@@ -1454,26 +1489,11 @@ const MediaModule = (() => {
     const nameEl = createUIElement('div', { className: 'playlist-item-name', textContent: media.name });
     const detailsEl = createUIElement('div', { className: 'playlist-item-details', textContent: `${media.type.charAt(0).toUpperCase() + media.type.slice(1)} · ${formatFileSize(media.size)}` });
 
-    const transitionData = state.playlist.transitions[index];
-    if (transitionData) {
-      const transitionName = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionData.transitionId)?.name || 'Custom';
-      const transitionIndicator = createUIElement('div', {
-        className: 'playlist-item-transition-indicator',
-        textContent: `➔ ${transitionName} (${transitionData.params.duration || '?'}ms)`,
-      });
-      infoContainer.appendChild(transitionIndicator);
-    }
     infoContainer.appendChild(nameEl);
     infoContainer.appendChild(detailsEl);
     item.appendChild(infoContainer);
 
     const controlsWrap = createUIElement('div', {className: 'playlist-item-controls-wrap'});
-    const addTransitionBtn = createUIElement('button', {
-      className: 'btn btn-icon playlist-item-add-transition',
-      innerHTML: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>',
-      attributes: { 'aria-label': `Add transition before ${media.name}`, 'data-index': index.toString() }
-    });
-    controlsWrap.appendChild(addTransitionBtn);
     const deleteBtn = createUIElement('button', { className: 'btn btn-icon btn-danger playlist-item-delete', innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>', attributes: { 'aria-label': `Remove ${media.name} from playlist` } });
     controlsWrap.appendChild(deleteBtn);
     item.appendChild(controlsWrap);
@@ -1495,21 +1515,25 @@ const MediaModule = (() => {
       if (state.dom.mediaGallery) elementToHighlight = state.dom.mediaGallery.querySelector(`.media-thumbnail[data-id="${mediaId}"]`);
     } else if (sourceType === 'playlist') {
       if (state.dom.playlistContainer) {
-        elementToHighlight = state.dom.playlistContainer.querySelector(`.playlist-item[data-id="${mediaId}"]`);
-        state.dom.playlistContainer.querySelectorAll('.playlist-item.current').forEach(el => el.classList.remove('current'));
-        if (elementToHighlight) {
-          elementToHighlight.classList.add('current');
-          const playingIndicator = elementToHighlight.querySelector('.playlist-item-playing-indicator');
-          if (state.playlist.isPlaying) {
-            if (!playingIndicator) {
-              const newIndicator = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
-              const thumbnailDiv = elementToHighlight.querySelector('.playlist-item-thumbnail');
-              if (thumbnailDiv) thumbnailDiv.appendChild(newIndicator);
+        const playlistElements = state.dom.playlistContainer.querySelectorAll('.playlist-item');
+        playlistElements.forEach((el, idx) => {
+          if (el.dataset.id === mediaId) {
+            elementToHighlight = el;
+            el.classList.add('current');
+            const thumbnailDiv = el.querySelector('.playlist-item-thumbnail');
+            if (state.playlist.isPlaying && thumbnailDiv) {
+              const existingIndicator = thumbnailDiv.querySelector('.playlist-item-playing-indicator');
+              if (!existingIndicator) {
+                const newIndicator = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
+                thumbnailDiv.appendChild(newIndicator);
+              }
             }
           } else {
-            if (playingIndicator) playingIndicator.remove();
+            el.classList.remove('current');
+            const indicator = el.querySelector('.playlist-item-playing-indicator');
+            if (indicator) indicator.remove();
           }
-        }
+        });
       }
     }
     if (elementToHighlight) elementToHighlight.classList.add('playing-from-here');
