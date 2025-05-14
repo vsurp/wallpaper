@@ -123,9 +123,16 @@
 
       MenuTools: {
         openL2Submenu: null,
-        currentTargetId: null,
-        currentTargetType: null,
-        // New function to set up listeners for L2 items after they are populated
+        currentTargetId: null, // Stores mediaId for effects, or playlistIndex for transitions
+        currentTargetType: null, // Stores 'effect' or 'transition' to guide L2 apply logic
+
+        // Function to set the target for L2 menu actions
+        setL2Target: function(id, type) {
+          this.currentTargetId = id;
+          this.currentTargetType = type;
+          console.log(`[MenuTools] L2 Target Set: ID=${id}, Type=${type}`);
+        },
+
         setupL2ItemListeners: function(parentElementId) {
           const parentElement = document.getElementById(parentElementId);
           if (!parentElement) {
@@ -134,27 +141,21 @@
           }
 
           const l2Items = parentElement.querySelectorAll('.submenu-item-l2');
-          console.log(`[MenuTools.setupL2ItemListeners] Found ${l2Items.length} L2 items in ${parentElementId}`);
-
           l2Items.forEach(item => {
-            // Remove any existing click listener to prevent duplicates if called multiple times
-            // A more robust way would be to use a named function and removeEventListener,
-            // or a flag on the element. For now, this is a simple approach.
-            const newClickHandler = () => { // Define handler inside to capture current item
+            const newClickHandler = () => {
               const parentMenu = item.closest('.slide-submenu-l2');
               if (!parentMenu) return;
 
               const effectId = item.getAttribute('data-effect-id');
               const transitionId = item.getAttribute('data-transition-id');
-              const itemId = effectId || transitionId;
-              const itemType = effectId ? 'effect' : 'transition';
+              const itemId = effectId || transitionId; // ID of the effect/transition type (e.g., 'blur', 'fade')
+              const itemType = effectId ? 'effect' : 'transition'; // 'effect' or 'transition'
 
               let controlsContainer = item.nextElementSibling;
               const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
 
               if (isNewControlsContainer) {
                 if (controlsContainer && controlsContainer.classList.contains('parameter-controls-container')) {
-                  // This case should not happen if logic is correct, but as a safeguard
                   controlsContainer.remove();
                 }
                 controlsContainer = document.createElement('div');
@@ -162,19 +163,18 @@
                 item.parentNode.insertBefore(controlsContainer, item.nextSibling);
               }
 
-              // Always repopulate controls when an item is clicked to ensure fresh state
+              // Populate controls using MediaModule.getParamsFor
+              // The targetApplyId and targetApplyType are now currentTargetId and currentTargetType from MenuTools
               if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
-                console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}"`);
+                console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}" to apply to Target ID: ${WallpaperApp.MenuTools.currentTargetId}, Target Type: ${WallpaperApp.MenuTools.currentTargetType}`);
                 window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, WallpaperApp.MenuTools.currentTargetId, WallpaperApp.MenuTools.currentTargetType);
               } else {
                 console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
                 controlsContainer.innerHTML = `<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>`;
               }
 
-
               const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
 
-              // Close other open parameter controls in the same L2 menu
               parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
                 if (container !== controlsContainer) {
                   container.classList.remove('visible');
@@ -195,17 +195,19 @@
                 item.classList.remove('expanded');
               } else {
                 controlsContainer.classList.add('visible');
-                controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px"; // Expand to content height
+                // Ensure scrollHeight is calculated after content is potentially populated
+                requestAnimationFrame(() => {
+                  controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px";
+                });
                 item.classList.add('expanded');
               }
             };
 
-            // A simple way to avoid multiple listeners: store the handler on the element
             if (item._l2ClickHandler) {
               item.removeEventListener('click', item._l2ClickHandler);
             }
             item.addEventListener('click', newClickHandler);
-            item._l2ClickHandler = newClickHandler; // Store for potential removal
+            item._l2ClickHandler = newClickHandler;
           });
         }
       },
@@ -249,8 +251,7 @@
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v0.1.5</div>
-    </div>
+      <div class="version-info">v0.1.5</div> </div>
   </nav>
 
   <div class="submenu-wrapper">
@@ -259,7 +260,8 @@
         <h1>MEDIA PLAYER</h1>
         <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
       </div>
-      <div class="menu-content"></div>
+      <div class="menu-content">
+      </div>
       <div class="menu-footer"></div>
     </div>
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
@@ -338,15 +340,54 @@
   <div id="tooltip-container"></div>
   <div id="notification-container" style="visibility: hidden;"></div>
   <div id="modal-container" style="display: none;"></div>
-</div>
+  <div id="context-menu-container" class="context-menu"></div>
+  <div id="inline-panel-container" class="inline-panel"></div>
 
-<script>
+</div> <script>
   document.addEventListener('DOMContentLoaded', function() {
     WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
-    setupMenuSystem(); // Call this only once
+
+    // Initialize main menu system
+    setupMenuSystem();
+
+    // Populate L2 submenus for Effects and Transitions
+    populateL2Submenu('effects-list-submenu', MediaModule.getAvailableEffects(), 'effect');
+    populateL2Submenu('transitions-list-submenu', MediaModule.getAvailableTransitions(), 'transition');
+
+    // Initial setup of L2 item listeners (will be called again if content changes)
+    WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
+    WallpaperApp.MenuTools.setupL2ItemListeners('transitions-list-submenu');
+
+
+    function populateL2Submenu(submenuId, items, type) {
+      const submenu = document.getElementById(submenuId);
+      if (!submenu) {
+        console.error(`[populateL2Submenu] Submenu with ID "${submenuId}" not found.`);
+        return;
+      }
+      const menuContentSection = submenu.querySelector('.menu-content .menu-section');
+      if (!menuContentSection) {
+        console.error(`[populateL2Submenu] Menu content section not found in submenu "${submenuId}".`);
+        return;
+      }
+      menuContentSection.innerHTML = ''; // Clear previous items
+
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.className = 'submenu-item-l2';
+        button.textContent = item.name;
+        if (type === 'effect') {
+          button.setAttribute('data-effect-id', item.id);
+        } else if (type === 'transition') {
+          button.setAttribute('data-transition-id', item.id);
+        }
+        menuContentSection.appendChild(button);
+      });
+    }
+
 
     function setupMenuSystem() {
-      try { // Wrap entire function for safety
+      try {
         const menuTrigger = document.getElementById('menu-trigger');
         const mainMenu = document.getElementById('main-menu');
         const menuClose = mainMenu.querySelector('.menu-close');
@@ -381,12 +422,12 @@
               element.removeEventListener('transitionend', handler);
               if (callback) callback();
             }
-          }, menuAnimationTimeMs + 70); // Increased timeout slightly
+          }, menuAnimationTimeMs + 70);
         }
 
         async function closeLevel2Submenus(keepL1Open = false) {
           return new Promise(resolve => {
-            if (!submenuWrapperL2) { resolve(); return; } // Guard against null
+            if (!submenuWrapperL2) { resolve(); return; }
             const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
             if (activeL2Wrapper) {
               activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active').forEach(submenu => {
@@ -412,7 +453,7 @@
         async function closeLevel1Submenus(keepMainMenuOpen = false) {
           return new Promise(async resolve => {
             await closeLevel2Submenus(true);
-            if (!submenuWrapperL1) { resolve(); return; } // Guard
+            if (!submenuWrapperL1) { resolve(); return; }
             const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
             if (activeL1Wrapper) {
               activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
@@ -473,10 +514,10 @@
               afterTransition(currentActiveL1Submenu, openLogic);
             } else if (!currentActiveL1Submenu) {
               openLogic();
-            } else if (currentActiveL1Submenu === targetL1Submenu) { // Already open or re-opening
-              if (!submenuWrapperL1.classList.contains('active')) { // If wrapper was hidden
+            } else if (currentActiveL1Submenu === targetL1Submenu) {
+              if (!submenuWrapperL1.classList.contains('active')) {
                 openLogic();
-              } else { // Already open and visible
+              } else {
                 mainMenu.classList.add('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
                 resolve(true);
@@ -489,7 +530,7 @@
           const submenuL2 = document.getElementById(submenuIdL2);
           if (!submenuL2 || !submenuWrapperL2) return;
 
-          const currentActiveL2Wrapper = submenuWrapperL2; // Simplified, as there's only one L2 wrapper
+          const currentActiveL2Wrapper = submenuWrapperL2;
           const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
 
           const openTargetL2 = () => {
@@ -498,7 +539,9 @@
             requestAnimationFrame(() => {
               currentActiveL2Wrapper.classList.add('active');
               mainMenu.classList.add('main-menu-l2-active');
-              mainMenu.classList.remove('main-menu-submenu-active'); // Ensure L1 class is off
+              mainMenu.classList.remove('main-menu-submenu-active');
+              // Setup listeners for the newly opened L2 menu's items
+              WallpaperApp.MenuTools.setupL2ItemListeners(submenuIdL2);
             });
           };
 
@@ -508,7 +551,7 @@
             currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
             afterTransition(currentActiveL2Submenu, openTargetL2);
           } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
-            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) { // Should be caught by above, but defensive
+            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
               currentActiveL2Submenu.classList.remove('active');
             }
             openTargetL2();
@@ -523,36 +566,38 @@
             const action = item.getAttribute('data-action');
             const isEffectsAction = action === 'effects';
             const isTransitionsAction = action === 'transitions';
-
             const previouslySelected = item.classList.contains('selected');
 
             categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+            if (!previouslySelected) item.classList.add('selected');
 
-            if (!previouslySelected) { // If it wasn't selected, now select it
-              item.classList.add('selected');
-            } // If it was selected, toggling means it's now deselected (class removed above)
-
-            if (!item.classList.contains('selected')) { // Item was deselected or is not the one to process
+            if (!item.classList.contains('selected')) {
               if (isEffectsAction || isTransitionsAction) await closeLevel2Submenus();
-              else {
-                const targetL1 = document.getElementById(`${action}-submenu`);
-                if (targetL1 && targetL1.classList.contains('active')) await closeLevel1Submenus();
-              }
+              else { const targetL1 = document.getElementById(`${action}-submenu`); if (targetL1 && targetL1.classList.contains('active')) await closeLevel1Submenus(); }
+              WallpaperApp.MenuTools.setL2Target(null, null); // Clear target if main category is deselected
               return;
             }
 
-            // Item is now selected
+            // When a category is selected, determine the target for L2 menus
             if (isEffectsAction) {
               await closeLevel1Submenus(true);
               WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
+              // For effects, the target is usually a selected media item from the library.
+              // This needs to be set when a media item is clicked/selected in MediaModule.
+              // For now, we'll rely on MediaModule to update WallpaperApp.MenuTools.currentTargetId via a new method.
+              // Example: If a media item is selected in media gallery, that item's ID becomes currentTargetId for 'effect'.
             } else if (isTransitionsAction) {
               await closeLevel1Submenus(true);
               WallpaperApp.MenuTools.openL2Submenu('transitions-list-submenu');
+              // For transitions, the target is a playlist index.
+              // This needs to be set when a transition zone or playlist item is interacted with.
+              // Example: Clicking a transition zone sets currentTargetId to the playlist index for 'transition'.
             } else {
-              await closeLevel2Submenus(true); // Close L2 if opening an L1
+              await closeLevel2Submenus(true);
               const targetL1Submenu = document.getElementById(`${action}-submenu`);
               if (targetL1Submenu) await openL1Submenu(targetL1Submenu);
               else await closeLevel1Submenus(true);
+              WallpaperApp.MenuTools.setL2Target(null, null); // Clear L2 target if opening L1
             }
           });
         });
@@ -561,6 +606,7 @@
           button.addEventListener('click', async () => {
             await closeLevel1Submenus();
             categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+            WallpaperApp.MenuTools.setL2Target(null, null); // Clear target
           });
         });
         submenuCloseButtonsL2.forEach(button => {
@@ -568,6 +614,7 @@
             await closeLevel2Submenus();
             document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
             document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
+            WallpaperApp.MenuTools.setL2Target(null, null); // Clear target
           });
         });
 
@@ -575,13 +622,15 @@
           if (e.key === 'Escape') {
             const activeModal = document.querySelector('#modal-container .modal.show');
             if (activeModal) WallpaperApp.UI.hideModal(activeModal.id);
-            else if (submenuWrapperL2 && submenuWrapperL2.classList.contains('active')) { // Check submenuWrapperL2 exists
+            else if (submenuWrapperL2 && submenuWrapperL2.classList.contains('active')) {
               await closeLevel2Submenus();
               document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
               document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
+              WallpaperApp.MenuTools.setL2Target(null, null);
             } else if (submenuWrapperL1.classList.contains('active')) {
               await closeLevel1Submenus();
               categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+              WallpaperApp.MenuTools.setL2Target(null, null);
             } else if (mainMenu.classList.contains('active')) {
               await closeMainMenu();
             }
@@ -589,11 +638,10 @@
         });
       } catch (error) {
         console.error("[setupMenuSystem] Error during setup:", error);
-        WallpaperApp.UI.showNotification("Error initializing menu system. Some UI may not work.", "error");
+        WallpaperApp.UI.showNotification("Error initializing menu system.", "error");
       }
-    } // End of setupMenuSystem
-  }); // End of DOMContentLoaded
+    }
+  });
 </script>
-<script src="media-importer.js"></script>
-</body>
+<script src="media-importer.js"></script> </body>
 </html>
