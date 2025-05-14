@@ -9,7 +9,7 @@
     // Global namespace for the application
     window.WallpaperApp = {
       config: {
-        version: '0.1.5', // Version update
+        version: '0.1.9', // Version update
         animationDuration: 300,
         tooltipDelay: 1000,
         notificationDuration: 3000
@@ -24,7 +24,6 @@
         showNotification(message, type = 'info') {
           const container = document.getElementById('notification-container');
           if (!container) {
-            // console.log(`Notification (${type}): ${message}`); // Avoid console log if container missing
             return;
           }
           if (container.children.length === 0) {
@@ -123,20 +122,20 @@
 
       MenuTools: {
         openL2Submenu: null,
-        currentTargetId: null, // Stores mediaId for effects, or playlistIndex for transitions
-        currentTargetType: null, // Stores 'effect' or 'transition' to guide L2 apply logic
+        activePerClipTransitionsPanel: null,
+        currentTargetId: null,
+        currentTargetType: null,
 
-        // Function to set the target for L2 menu actions
         setL2Target: function(id, type) {
           this.currentTargetId = id;
           this.currentTargetType = type;
-          console.log(`[MenuTools] L2 Target Set: ID=${id}, Type=${type}`);
+          console.log('[MenuTools] L2 Target Set: ID=' + id + ', Type=' + type);
         },
 
         setupL2ItemListeners: function(parentElementId) {
           const parentElement = document.getElementById(parentElementId);
           if (!parentElement) {
-            console.warn(`[MenuTools.setupL2ItemListeners] Parent element with ID "${parentElementId}" not found.`);
+            console.warn('[MenuTools.setupL2ItemListeners] Parent element with ID "' + parentElementId + '" not found.');
             return;
           }
 
@@ -147,9 +146,8 @@
               if (!parentMenu) return;
 
               const effectId = item.getAttribute('data-effect-id');
-              const transitionId = item.getAttribute('data-transition-id');
-              const itemId = effectId || transitionId; // ID of the effect/transition type (e.g., 'blur', 'fade')
-              const itemType = effectId ? 'effect' : 'transition'; // 'effect' or 'transition'
+              const itemId = effectId;
+              const itemType = 'effect';
 
               let controlsContainer = item.nextElementSibling;
               const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
@@ -163,14 +161,12 @@
                 item.parentNode.insertBefore(controlsContainer, item.nextSibling);
               }
 
-              // Populate controls using MediaModule.getParamsFor
-              // The targetApplyId and targetApplyType are now currentTargetId and currentTargetType from MenuTools
               if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
-                console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}" to apply to Target ID: ${WallpaperApp.MenuTools.currentTargetId}, Target Type: ${WallpaperApp.MenuTools.currentTargetType}`);
+                console.log('[MenuTools] Requesting params for ' + itemType + ' "' + itemId + '" to apply to Target ID: ' + WallpaperApp.MenuTools.currentTargetId + ', Target Type: ' + WallpaperApp.MenuTools.currentTargetType);
                 window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, WallpaperApp.MenuTools.currentTargetId, WallpaperApp.MenuTools.currentTargetType);
               } else {
                 console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
-                controlsContainer.innerHTML = `<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>`;
+                controlsContainer.innerHTML = '<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>';
               }
 
               const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
@@ -195,7 +191,6 @@
                 item.classList.remove('expanded');
               } else {
                 controlsContainer.classList.add('visible');
-                // Ensure scrollHeight is calculated after content is potentially populated
                 requestAnimationFrame(() => {
                   controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px";
                 });
@@ -209,6 +204,73 @@
             item.addEventListener('click', newClickHandler);
             item._l2ClickHandler = newClickHandler;
           });
+        },
+
+        openPerClipTransitionsPanel: function(playlistItemIndex, clipName) {
+          const panel = document.getElementById('per-clip-transitions-panel');
+          const panelWrapper = document.getElementById('slide-left-panel-wrapper');
+          const importMediaSubmenu = document.getElementById('import-media-submenu');
+
+          if (!panel || !panelWrapper || !importMediaSubmenu) {
+            console.error('[MenuTools.openPerClipTransitionsPanel] Panel elements not found.');
+            return;
+          }
+
+          if (this.activePerClipTransitionsPanel && this.activePerClipTransitionsPanel !== panel) {
+            this.closePerClipTransitionsPanel();
+          }
+
+          const panelHeaderTitle = panel.querySelector('.panel-header-title');
+          if(panelHeaderTitle) panelHeaderTitle.textContent = 'Transitions for: ' + clipName;
+
+          if (window.MediaModule && typeof window.MediaModule.populatePerClipTransitions === 'function') {
+            window.MediaModule.populatePerClipTransitions(playlistItemIndex);
+          }
+
+          const importMediaSubmenuWidth = importMediaSubmenu.offsetWidth;
+          panelWrapper.style.right = 'calc(var(--menu-width) + ' + importMediaSubmenuWidth + 'px)';
+          panelWrapper.style.display = 'block';
+
+          requestAnimationFrame(() => {
+            panelWrapper.classList.add('active');
+          });
+
+          this.activePerClipTransitionsPanel = panel;
+          document.getElementById('main-menu').classList.add('main-menu-slide-left-active');
+        },
+
+        closePerClipTransitionsPanel: function() {
+          const panelWrapper = document.getElementById('slide-left-panel-wrapper');
+          if (!this.activePerClipTransitionsPanel || !panelWrapper) {
+            if (this.activePerClipTransitionsPanel) this.activePerClipTransitionsPanel = null;
+            document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
+            if(panelWrapper) panelWrapper.style.display = 'none';
+            return;
+          }
+
+          this.activePerClipTransitionsPanel = null;
+          document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
+
+          if (panelWrapper.classList.contains('active')) {
+            panelWrapper.classList.remove('active');
+
+            const transitionEndHandler = () => {
+              if (!panelWrapper.classList.contains('active')) {
+                panelWrapper.style.display = 'none';
+              }
+              panelWrapper.removeEventListener('transitionend', transitionEndHandler);
+            };
+            panelWrapper.addEventListener('transitionend', transitionEndHandler);
+
+            setTimeout(() => {
+              if (!panelWrapper.classList.contains('active')) {
+                panelWrapper.style.display = 'none';
+              }
+              panelWrapper.removeEventListener('transitionend', transitionEndHandler);
+            }, WallpaperApp.config.animationDuration + 70);
+          } else {
+            panelWrapper.style.display = 'none';
+          }
         }
       },
       Utils: {}
@@ -238,7 +300,6 @@
         <hr class="divider">
         <button class="category-item" data-action="import-media">MEDIA PLAYER</button>
         <button class="category-item" data-action="effects">EFFECTS</button>
-        <button class="category-item" data-action="transitions">TRANSITIONS</button>
         <hr class="divider">
         <button class="category-item" data-action="daw-integration">DAW INTEGRATION</button>
         <button class="category-item" data-action="performance">PERFORMANCE</button>
@@ -251,7 +312,7 @@
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v0.1.5</div> </div>
+      <div class="version-info">v0.1.9</div> </div>
   </nav>
 
   <div class="submenu-wrapper">
@@ -264,6 +325,7 @@
       </div>
       <div class="menu-footer"></div>
     </div>
+
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
@@ -323,19 +385,23 @@
       </div>
       <div class="menu-footer"></div>
     </div>
+  </div>
 
-    <div id="transitions-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
+  <div id="slide-left-panel-wrapper" class="slide-left-panel-wrapper" style="display: none;">
+    <div id="per-clip-transitions-panel" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header">
-        <h1>TRANSITIONS LIST</h1>
-        <button class="btn btn-icon submenu-close-l2" aria-label="Close L2 submenu">&times;</button>
+        <h1 class="panel-header-title">TRANSITIONS FOR CLIP</h1>
+        <button class="btn btn-icon panel-close" aria-label="Close transitions panel">&times;</button>
       </div>
       <div class="menu-content">
-        <div class="menu-section">
+        <div class="menu-section" id="per-clip-transitions-list">
         </div>
       </div>
-      <div class="menu-footer"></div>
+      <div class="menu-footer">
+      </div>
     </div>
   </div>
+
 
   <div id="tooltip-container"></div>
   <div id="notification-container" style="visibility: hidden;"></div>
@@ -343,34 +409,34 @@
   <div id="context-menu-container" class="context-menu"></div>
   <div id="inline-panel-container" class="inline-panel"></div>
 
-</div> <script>
+</div>
+<script>
   document.addEventListener('DOMContentLoaded', function() {
     WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
 
-    // Initialize main menu system
     setupMenuSystem();
-
-    // Populate L2 submenus for Effects and Transitions
     populateL2Submenu('effects-list-submenu', MediaModule.getAvailableEffects(), 'effect');
-    populateL2Submenu('transitions-list-submenu', MediaModule.getAvailableTransitions(), 'transition');
-
-    // Initial setup of L2 item listeners (will be called again if content changes)
     WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
-    WallpaperApp.MenuTools.setupL2ItemListeners('transitions-list-submenu');
 
+    const perClipPanelCloseBtn = document.querySelector('#per-clip-transitions-panel .panel-close');
+    if (perClipPanelCloseBtn) {
+      perClipPanelCloseBtn.addEventListener('click', () => {
+        WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+      });
+    }
 
     function populateL2Submenu(submenuId, items, type) {
       const submenu = document.getElementById(submenuId);
       if (!submenu) {
-        console.error(`[populateL2Submenu] Submenu with ID "${submenuId}" not found.`);
+        console.error('[populateL2Submenu] Submenu with ID "' + submenuId + '" not found.');
         return;
       }
       const menuContentSection = submenu.querySelector('.menu-content .menu-section');
       if (!menuContentSection) {
-        console.error(`[populateL2Submenu] Menu content section not found in submenu "${submenuId}".`);
+        console.error('[populateL2Submenu] Menu content section not found in submenu "' + submenuId + '".');
         return;
       }
-      menuContentSection.innerHTML = ''; // Clear previous items
+      menuContentSection.innerHTML = '';
 
       items.forEach(item => {
         const button = document.createElement('button');
@@ -378,13 +444,10 @@
         button.textContent = item.name;
         if (type === 'effect') {
           button.setAttribute('data-effect-id', item.id);
-        } else if (type === 'transition') {
-          button.setAttribute('data-transition-id', item.id);
         }
         menuContentSection.appendChild(button);
       });
     }
-
 
     function setupMenuSystem() {
       try {
@@ -404,25 +467,14 @@
 
         let menuAnimationTimeMs = WallpaperApp.config.animationDuration;
 
-        function afterTransition(element, callback) {
-          if (!element) { if (callback) callback(); return; }
-          let fired = false;
-          const handler = (event) => {
-            if (fired) return;
-            if (event.target === element && (event.propertyName === 'transform' || event.propertyName === 'width' || event.propertyName === 'opacity')) {
-              fired = true;
-              element.removeEventListener('transitionend', handler);
-              if (callback) callback();
-            }
-          };
-          element.addEventListener('transitionend', handler);
+        function afterAnimation(element, callback) {
           setTimeout(() => {
-            if (!fired) {
-              fired = true;
-              element.removeEventListener('transitionend', handler);
-              if (callback) callback();
-            }
-          }, menuAnimationTimeMs + 70);
+            if (callback) callback();
+          }, menuAnimationTimeMs + 50);
+        }
+
+        async function closeActivePerClipTransitionsPanel() {
+          WallpaperApp.MenuTools.closePerClipTransitionsPanel();
         }
 
         async function closeLevel2Submenus(keepL1Open = false) {
@@ -439,7 +491,8 @@
               });
               activeL2Wrapper.classList.remove('active');
               if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
-              afterTransition(activeL2Wrapper, () => {
+
+              afterAnimation(activeL2Wrapper, () => {
                 if (!activeL2Wrapper.classList.contains('active')) activeL2Wrapper.style.display = 'none';
                 resolve();
               });
@@ -453,6 +506,8 @@
         async function closeLevel1Submenus(keepMainMenuOpen = false) {
           return new Promise(async resolve => {
             await closeLevel2Submenus(true);
+            await closeActivePerClipTransitionsPanel();
+
             if (!submenuWrapperL1) { resolve(); return; }
             const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
             if (activeL1Wrapper) {
@@ -461,8 +516,9 @@
               if (!keepMainMenuOpen) {
                 mainMenu.classList.remove('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
+                mainMenu.classList.remove('main-menu-slide-left-active');
               }
-              afterTransition(activeL1Wrapper, () => {
+              afterAnimation(activeL1Wrapper, () => {
                 if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
                 resolve();
               });
@@ -470,6 +526,7 @@
               if (!keepMainMenuOpen) {
                 mainMenu.classList.remove('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
+                mainMenu.classList.remove('main-menu-slide-left-active');
               }
               resolve();
             }
@@ -481,7 +538,7 @@
             await closeLevel1Submenus();
             if (mainMenu.classList.contains('active')) {
               mainMenu.classList.remove('active');
-              afterTransition(mainMenu, resolve);
+              afterAnimation(mainMenu, resolve);
             } else {
               resolve();
             }
@@ -492,8 +549,9 @@
           return new Promise(async resolve => {
             if (!targetL1Submenu || !submenuWrapperL1) { resolve(false); return; }
             await closeLevel2Submenus(true);
+            await closeActivePerClipTransitionsPanel();
+
             const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
-            const targetCategoryItem = document.querySelector(`.category-item[data-action="${targetL1Submenu.id.replace('-submenu', '')}"]`);
 
             const openLogic = () => {
               targetL1Submenu.classList.add('active');
@@ -502,17 +560,15 @@
                 submenuWrapperL1.classList.add('active');
                 mainMenu.classList.add('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
-                afterTransition(submenuWrapperL1, () => resolve(true));
+                mainMenu.classList.remove('main-menu-slide-left-active');
+                afterAnimation(submenuWrapperL1, () => resolve(true));
               });
             };
 
-            categoryItems.forEach(ci => ci.classList.remove('selected'));
-            if (targetCategoryItem) targetCategoryItem.classList.add('selected');
-
             if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
               currentActiveL1Submenu.classList.remove('active');
-              afterTransition(currentActiveL1Submenu, openLogic);
-            } else if (!currentActiveL1Submenu) {
+              afterAnimation(currentActiveL1Submenu, openLogic);
+            } else if (!currentActiveL1Submenu || currentActiveL1Submenu !== targetL1Submenu) {
               openLogic();
             } else if (currentActiveL1Submenu === targetL1Submenu) {
               if (!submenuWrapperL1.classList.contains('active')) {
@@ -520,6 +576,7 @@
               } else {
                 mainMenu.classList.add('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
+                mainMenu.classList.remove('main-menu-slide-left-active');
                 resolve(true);
               }
             }
@@ -530,6 +587,19 @@
           const submenuL2 = document.getElementById(submenuIdL2);
           if (!submenuL2 || !submenuWrapperL2) return;
 
+          await closeActivePerClipTransitionsPanel();
+
+          const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
+          if (activeL1Wrapper) {
+            activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
+            activeL1Wrapper.classList.remove('active');
+            afterAnimation(activeL1Wrapper, () => {
+              if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
+            });
+          }
+          mainMenu.classList.remove('main-menu-submenu-active');
+          mainMenu.classList.remove('main-menu-slide-left-active');
+
           const currentActiveL2Wrapper = submenuWrapperL2;
           const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
 
@@ -539,8 +609,6 @@
             requestAnimationFrame(() => {
               currentActiveL2Wrapper.classList.add('active');
               mainMenu.classList.add('main-menu-l2-active');
-              mainMenu.classList.remove('main-menu-submenu-active');
-              // Setup listeners for the newly opened L2 menu's items
               WallpaperApp.MenuTools.setupL2ItemListeners(submenuIdL2);
             });
           };
@@ -549,11 +617,8 @@
             currentActiveL2Submenu.classList.remove('active');
             currentActiveL2Submenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {c.classList.remove('visible'); c.style.maxHeight = '0px';});
             currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
-            afterTransition(currentActiveL2Submenu, openTargetL2);
+            afterAnimation(currentActiveL2Submenu, openTargetL2);
           } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
-            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
-              currentActiveL2Submenu.classList.remove('active');
-            }
             openTargetL2();
           }
         };
@@ -565,72 +630,94 @@
           item.addEventListener('click', async () => {
             const action = item.getAttribute('data-action');
             const isEffectsAction = action === 'effects';
-            const isTransitionsAction = action === 'transitions';
-            const previouslySelected = item.classList.contains('selected');
 
-            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-            if (!previouslySelected) item.classList.add('selected');
+            const isCurrentlySelected = item.classList.contains('selected');
+            let associatedMenuIsOpen = false;
 
-            if (!item.classList.contains('selected')) {
-              if (isEffectsAction || isTransitionsAction) await closeLevel2Submenus();
-              else { const targetL1 = document.getElementById(`${action}-submenu`); if (targetL1 && targetL1.classList.contains('active')) await closeLevel1Submenus(); }
-              WallpaperApp.MenuTools.setL2Target(null, null); // Clear target if main category is deselected
-              return;
+            if (isEffectsAction) {
+              const effectsMenu = document.getElementById('effects-list-submenu');
+              if (effectsMenu && effectsMenu.classList.contains('active') && effectsMenu.closest('.submenu-wrapper-l2.active')) {
+                associatedMenuIsOpen = true;
+              }
+            } else {
+              const targetL1Submenu = document.getElementById(action + '-submenu');
+              if (targetL1Submenu && targetL1Submenu.classList.contains('active') && targetL1Submenu.closest('.submenu-wrapper.active')) {
+                associatedMenuIsOpen = true;
+              }
             }
 
-            // When a category is selected, determine the target for L2 menus
-            if (isEffectsAction) {
-              await closeLevel1Submenus(true);
-              WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
-              // For effects, the target is usually a selected media item from the library.
-              // This needs to be set when a media item is clicked/selected in MediaModule.
-              // For now, we'll rely on MediaModule to update WallpaperApp.MenuTools.currentTargetId via a new method.
-              // Example: If a media item is selected in media gallery, that item's ID becomes currentTargetId for 'effect'.
-            } else if (isTransitionsAction) {
-              await closeLevel1Submenus(true);
-              WallpaperApp.MenuTools.openL2Submenu('transitions-list-submenu');
-              // For transitions, the target is a playlist index.
-              // This needs to be set when a transition zone or playlist item is interacted with.
-              // Example: Clicking a transition zone sets currentTargetId to the playlist index for 'transition'.
+            if (isCurrentlySelected && associatedMenuIsOpen) {
+              item.classList.remove('selected');
+              if (isEffectsAction) {
+                await closeLevel2Submenus();
+              } else {
+                await closeLevel1Submenus();
+              }
+              WallpaperApp.MenuTools.setL2Target(null, null);
             } else {
-              await closeLevel2Submenus(true);
-              const targetL1Submenu = document.getElementById(`${action}-submenu`);
-              if (targetL1Submenu) await openL1Submenu(targetL1Submenu);
-              else await closeLevel1Submenus(true);
-              WallpaperApp.MenuTools.setL2Target(null, null); // Clear L2 target if opening L1
+              categoryItems.forEach(ci => ci.classList.remove('selected'));
+              item.classList.add('selected');
+
+              if (isEffectsAction) {
+                await closeLevel1Submenus(true);
+                await closeActivePerClipTransitionsPanel();
+                WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
+              } else {
+                await closeLevel2Submenus(true);
+                await closeActivePerClipTransitionsPanel();
+                const targetL1Submenu = document.getElementById(action + '-submenu');
+                if (targetL1Submenu) {
+                  await openL1Submenu(targetL1Submenu);
+                } else {
+                  await closeLevel1Submenus(true);
+                  item.classList.remove('selected');
+                }
+              }
+              if (!isEffectsAction) {
+                WallpaperApp.MenuTools.setL2Target(null, null);
+              }
             }
           });
         });
 
         submenuCloseButtonsL1.forEach(button => {
           button.addEventListener('click', async () => {
+            const parentSubmenu = button.closest('.slide-submenu');
+            if (parentSubmenu) {
+              const action = parentSubmenu.id.replace('-submenu', '');
+              document.querySelector('.category-item[data-action="' + action + '"]')?.classList.remove('selected');
+            }
             await closeLevel1Submenus();
-            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-            WallpaperApp.MenuTools.setL2Target(null, null); // Clear target
           });
         });
+
         submenuCloseButtonsL2.forEach(button => {
           button.addEventListener('click', async () => {
+            const parentSubmenu = button.closest('.slide-submenu-l2');
+            if (parentSubmenu && parentSubmenu.id === 'effects-list-submenu') {
+              document.querySelector('.category-item[data-action="effects"]')?.classList.remove('selected');
+            }
             await closeLevel2Submenus();
-            document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-            document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-            WallpaperApp.MenuTools.setL2Target(null, null); // Clear target
           });
         });
 
         document.addEventListener('keydown', async (e) => {
           if (e.key === 'Escape') {
             const activeModal = document.querySelector('#modal-container .modal.show');
-            if (activeModal) WallpaperApp.UI.hideModal(activeModal.id);
-            else if (submenuWrapperL2 && submenuWrapperL2.classList.contains('active')) {
+            if (activeModal) {
+              WallpaperApp.UI.hideModal(activeModal.id);
+            } else if (WallpaperApp.MenuTools.activePerClipTransitionsPanel) {
+              await closeActivePerClipTransitionsPanel();
+            } else if (document.querySelector('.submenu-wrapper-l2.active')) {
               await closeLevel2Submenus();
               document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-              document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-              WallpaperApp.MenuTools.setL2Target(null, null);
-            } else if (submenuWrapperL1.classList.contains('active')) {
+            } else if (document.querySelector('.submenu-wrapper.active')) {
+              const activeL1 = document.querySelector('.submenu-wrapper.active .slide-submenu.active');
+              if (activeL1) {
+                const action = activeL1.id.replace('-submenu', '');
+                document.querySelector('.category-item[data-action="' + action + '"]')?.classList.remove('selected');
+              }
               await closeLevel1Submenus();
-              categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-              WallpaperApp.MenuTools.setL2Target(null, null);
             } else if (mainMenu.classList.contains('active')) {
               await closeMainMenu();
             }
@@ -643,5 +730,6 @@
     }
   });
 </script>
-<script src="media-importer.js"></script> </body>
+<script src="media-importer.js"></script>
+</body>
 </html>

@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.4.2 - Immediate Delete & L2 Menu Parameter Handling
+ * Version 0.4.5 - Per-Clip Transitions Panel Logic (Syntax Double-Checked)
  */
 
 const MediaModule = (() => {
@@ -15,8 +15,8 @@ const MediaModule = (() => {
       height: 90
     },
     IMAGE_DISPLAY_DURATION: 5000,
-    STORAGE_KEY: 'flStudioWallpaper_media_v6',
-    STORAGE_KEY_OLD: 'flStudioWallpaper_media_v5',
+    STORAGE_KEY: 'flStudioWallpaper_media_v7',
+    STORAGE_KEY_OLD: 'flStudioWallpaper_media_v6',
     VIDEO_METADATA_TIMEOUT: 10000,
     VIDEO_THUMBNAIL_TIMEOUT: 10000,
     AVAILABLE_EFFECTS: [
@@ -60,6 +60,7 @@ const MediaModule = (() => {
       mainMenu: null,
       contextMenuContainer: null,
       inlinePanelContainer: null,
+      perClipTransitionsList: null,
     },
     selection: {
       active: false,
@@ -82,6 +83,7 @@ const MediaModule = (() => {
       panelElement: null,
       contextMenuElement: null,
       activeItem: null,
+      perClipTargetIndex: null
     }
   };
 
@@ -93,6 +95,7 @@ const MediaModule = (() => {
       state.dom.contextMenuContainer = document.getElementById('context-menu-container');
       state.dom.inlinePanelContainer = document.getElementById('inline-panel-container');
       state.dom.mediaContainer = document.getElementById('media-container');
+      state.dom.perClipTransitionsList = document.getElementById('per-clip-transitions-list');
 
       initMediaImporter();
 
@@ -114,9 +117,14 @@ const MediaModule = (() => {
             state.contextualEditing.panelElement.style.display !== 'none' &&
             !state.contextualEditing.panelElement.contains(e.target) &&
             !e.target.closest('.media-thumbnail') &&
-            !e.target.closest('.playlist-transition-zone') &&
-            !e.target.closest('.parameter-controls-container')) { // Keep L2 panel if clicking inside it
+            !e.target.closest('.parameter-controls-container')) {
           hideInlinePanel();
+        }
+        const perClipPanel = document.getElementById('per-clip-transitions-panel');
+        if (perClipPanel && perClipPanel.closest('.slide-left-panel-wrapper.active')) {
+          if (!perClipPanel.contains(e.target) && !e.target.closest('.playlist-item-set-transition-btn')) {
+            // Consider closing strategy here
+          }
         }
       }, true);
       console.log("[MediaModule] init: Initialization complete.");
@@ -221,7 +229,7 @@ const MediaModule = (() => {
       galleryRect = gallery.getBoundingClientRect();
       state.selection.startPoint = { x: e.clientX - galleryRect.left + gallery.scrollLeft, y: e.clientY - galleryRect.top + gallery.scrollTop };
       if (state.selection.selectionBoxElement) state.selection.selectionBoxElement.remove();
-      state.selection.selectionBoxElement = createUIElement('div', { className: 'selection-box', style: { left: `${state.selection.startPoint.x - gallery.scrollLeft}px`, top: `${state.selection.startPoint.y - gallery.scrollTop}px`, width: '0px', height: '0px' }});
+      state.selection.selectionBoxElement = createUIElement('div', { className: 'selection-box', style: { left: (state.selection.startPoint.x - gallery.scrollLeft) + 'px', top: (state.selection.startPoint.y - gallery.scrollTop) + 'px', width: '0px', height: '0px' }});
       gallery.appendChild(state.selection.selectionBoxElement);
       if (!state.selection.shiftKeyActive) clearSelection();
       e.preventDefault();
@@ -231,8 +239,10 @@ const MediaModule = (() => {
       const currentX = e.clientX - galleryRect.left + gallery.scrollLeft; const currentY = e.clientY - galleryRect.top + gallery.scrollTop;
       const x1 = Math.min(state.selection.startPoint.x, currentX); const y1 = Math.min(state.selection.startPoint.y, currentY);
       const x2 = Math.max(state.selection.startPoint.x, currentX); const y2 = Math.max(state.selection.startPoint.y, currentY);
-      state.selection.selectionBoxElement.style.left = `${x1 - gallery.scrollLeft}px`; state.selection.selectionBoxElement.style.top = `${y1 - gallery.scrollTop}px`;
-      state.selection.selectionBoxElement.style.width = `${x2 - x1}px`; state.selection.selectionBoxElement.style.height = `${y2 - y1}px`;
+      state.selection.selectionBoxElement.style.left = (x1 - gallery.scrollLeft) + 'px';
+      state.selection.selectionBoxElement.style.top = (y1 - gallery.scrollTop) + 'px';
+      state.selection.selectionBoxElement.style.width = (x2 - x1) + 'px';
+      state.selection.selectionBoxElement.style.height = (y2 - y1) + 'px';
       const selectionRectDoc = { left: x1 + galleryRect.left - gallery.scrollLeft, top: y1 + galleryRect.top - gallery.scrollTop, right: x2 + galleryRect.left - gallery.scrollLeft, bottom: y2 + galleryRect.top - gallery.scrollTop };
       gallery.querySelectorAll('.media-thumbnail').forEach(thumbnail => {
         const thumbnailRectDoc = thumbnail.getBoundingClientRect(); const mediaId = thumbnail.dataset.id;
@@ -252,12 +262,14 @@ const MediaModule = (() => {
     const section = createUIElement('div', { id: 'playlist-section' });
     const title = createUIElement('h3', { textContent: 'PLAYLIST' });
     const playlistContainer = createUIElement('div', { id: 'playlist-container' });
-    playlistContainer.addEventListener('dragover', handlePlaylistDragOver); playlistContainer.addEventListener('drop', handlePlaylistDrop);
+    playlistContainer.addEventListener('dragover', handlePlaylistDragOver);
+    playlistContainer.addEventListener('drop', handlePlaylistDrop);
     playlistContainer.addEventListener('dragenter', (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = 'rgba(60, 60, 60, 0.3)'; });
     playlistContainer.addEventListener('dragleave', (e) => { e.preventDefault(); playlistContainer.style.backgroundColor = ''; });
     state.dom.playlistEmptyState = createUIElement('div', { id: 'playlist-empty-state', textContent: 'Drag media here to create a playlist.' });
     playlistContainer.appendChild(state.dom.playlistEmptyState);
-    section.appendChild(title); section.appendChild(playlistContainer);
+    section.appendChild(title);
+    section.appendChild(playlistContainer);
     state.dom.playlistContainer = playlistContainer;
     const controlsContainer = createUIElement('div', { id: 'playlist-controls', style: { visibility: 'hidden' } });
     state.dom.playlistControlsContainer = controlsContainer;
@@ -310,8 +322,20 @@ const MediaModule = (() => {
     }
     if (state.dom.playlistContainer) {
       state.dom.playlistContainer.addEventListener('click', (e) => {
-        const item = e.target.closest('.playlist-item'); const transitionZone = e.target.closest('.playlist-transition-zone');
-        if (transitionZone) {
+        const item = e.target.closest('.playlist-item');
+        const transitionZone = e.target.closest('.playlist-transition-zone');
+        const setTransitionBtn = e.target.closest('.playlist-item-set-transition-btn');
+
+        if (setTransitionBtn) {
+          e.stopPropagation();
+          const playlistItemElement = setTransitionBtn.closest('.playlist-item');
+          const index = parseInt(playlistItemElement.dataset.index, 10);
+          const mediaId = playlistItemElement.dataset.id;
+          const media = state.mediaLibrary.find(m => m.id === mediaId);
+          if (media && typeof index === 'number') {
+            WallpaperApp.MenuTools.openPerClipTransitionsPanel(index, media.name);
+          }
+        } else if (transitionZone) {
           e.stopPropagation(); const playlistIndex = parseInt(transitionZone.dataset.index, 10);
           if (!isNaN(playlistIndex)) showInlinePanel(e, playlistIndex, 'transition', transitionZone);
         } else if (item) {
@@ -330,6 +354,8 @@ const MediaModule = (() => {
 
   const showContextMenu = (event, targetId, type, anchorElement) => {
     hideContextMenu(); hideInlinePanel();
+    if (type !== 'transition_per_clip') WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+
     const menu = state.dom.contextMenuContainer; if (!menu) { console.error("Context menu container not found."); return; }
     menu.innerHTML = ''; menu.style.display = 'block';
     const importSubmenuRect = state.dom.importSubmenu.getBoundingClientRect();
@@ -338,9 +364,12 @@ const MediaModule = (() => {
     if (x + menuWidth > importSubmenuRect.width) x = importSubmenuRect.width - menuWidth - 5;
     if (y + menuHeight > importSubmenuRect.height) y = importSubmenuRect.height - menuHeight - 5;
     if (x < 0) x = 5; if (y < 0) y = 5;
-    menu.style.left = `${x}px`; menu.style.top = `${y}px`;
-    state.contextualEditing.contextMenuElement = menu; state.contextualEditing.targetId = targetId;
-    state.contextualEditing.type = type; state.contextualEditing.activeItem = null;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    state.contextualEditing.contextMenuElement = menu;
+    state.contextualEditing.targetId = targetId;
+    state.contextualEditing.type = type;
+    state.contextualEditing.activeItem = null;
     if (type === 'effect') {
       const editEffectsButton = createUIElement('button', { textContent: 'Add/Edit Effect', className: 'context-menu-item', events: { click: () => { hideContextMenu(); showInlinePanel(event, targetId, 'effect', anchorElement); }}});
       menu.appendChild(editEffectsButton);
@@ -354,10 +383,14 @@ const MediaModule = (() => {
 
   const showInlinePanel = (event, targetId, type, anchorElement) => {
     hideInlinePanel(); hideContextMenu();
+    WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+
     const panel = state.dom.inlinePanelContainer; if (!panel) { console.error("Inline panel container not found."); return; }
     panel.innerHTML = ''; panel.style.display = 'block';
-    state.contextualEditing.panelElement = panel; state.contextualEditing.targetId = targetId;
-    state.contextualEditing.type = type; state.contextualEditing.activeItem = null;
+    state.contextualEditing.panelElement = panel;
+    state.contextualEditing.targetId = targetId;
+    state.contextualEditing.type = type;
+    state.contextualEditing.activeItem = null;
     if (anchorElement && state.dom.importSubmenu) {
       const anchorRect = anchorElement.getBoundingClientRect(); const submenuRect = state.dom.importSubmenu.getBoundingClientRect();
       let panelTop = anchorRect.bottom - submenuRect.top + 5; let panelLeft = anchorRect.left - submenuRect.left;
@@ -365,7 +398,8 @@ const MediaModule = (() => {
       if (panelLeft + panelWidth > submenuRect.width) panelLeft = anchorRect.right - submenuRect.left - panelWidth;
       if (panelTop + panelHeightEstimate > submenuRect.height) panelTop = anchorRect.top - submenuRect.top - panelHeightEstimate - 5;
       if (panelLeft < 0) panelLeft = 5; if (panelTop < 0) panelTop = 5;
-      panel.style.top = `${panelTop}px`; panel.style.left = `${panelLeft}px`;
+      panel.style.top = panelTop + 'px';
+      panel.style.left = panelLeft + 'px';
     } else { panel.style.top = '50px'; panel.style.left = '50px'; }
     const mediaItemForTitle = type === 'effect' ? state.mediaLibrary.find(m=>m.id === targetId) : null;
     const titleText = type === 'effect' ? `Effects for ${mediaItemForTitle?.name || 'Item'}` : `Transition before item ${targetId + 1}`;
@@ -382,7 +416,8 @@ const MediaModule = (() => {
     panel.appendChild(controlsContainer);
     const applyButton = createUIElement('button', { textContent: 'Apply', className: 'btn btn-primary btn-small inline-panel-button-apply' });
     applyButton.addEventListener('click', () => {
-      if (type === 'effect') applyEffect(targetId); else if (type === 'transition') applyTransition(targetId);
+      if (type === 'effect') applyEffect(targetId);
+      else if (type === 'transition') applyTransitionFromInlinePanel(targetId);
     });
     const closeButton = createUIElement('button', { textContent: 'Close', className: 'btn btn-secondary btn-small' });
     closeButton.addEventListener('click', hideInlinePanel);
@@ -409,7 +444,7 @@ const MediaModule = (() => {
       if (param.type === 'slider') {
         input = createUIElement('input', { type: 'range', id: `param-${param.id}`, min: param.min, max: param.max, value: currentValue, attributes: { 'data-param-id': param.id }});
         const unitDisplay = param.unit || ''; const valueSpan = createUIElement('span', {textContent: `${currentValue}${unitDisplay}`, className: 'param-value-display'});
-        input.addEventListener('input', (e) => { valueSpan.textContent = `${e.target.value}${unitDisplay}`; });
+        input.addEventListener('input', (e) => { valueSpan.textContent = e.target.value + unitDisplay; });
         paramGroup.appendChild(input); paramGroup.appendChild(valueSpan);
       } else if (param.type === 'select') {
         input = createUIElement('select', { id: `param-${param.id}`, attributes: { 'data-param-id': param.id } });
@@ -433,7 +468,7 @@ const MediaModule = (() => {
     const activeEffectItem = effectIdToApply ? CONSTANTS.AVAILABLE_EFFECTS.find(e => e.id === effectIdToApply) : state.contextualEditing.activeItem;
     const effectParams = paramsToApply || {};
 
-    if (!effectIdToApply && !paramsToApply) { // Coming from inline panel
+    if (!effectIdToApply && !paramsToApply) {
       const panel = state.contextualEditing.panelElement;
       if (!panel || !activeEffectItem) {
         showNotification("No active effect selected or panel not found.", "error");
@@ -463,30 +498,49 @@ const MediaModule = (() => {
     }
   };
 
-  const applyTransition = (playlistIndex, transitionIdToApply, paramsToApply) => {
-    const activeTransitionItem = transitionIdToApply ? CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionIdToApply) : state.contextualEditing.activeItem;
-    const transitionParams = paramsToApply || {};
+  const applyTransitionFromInlinePanel = (playlistIndex) => {
+    const activeTransitionItem = state.contextualEditing.activeItem;
+    const transitionParams = {};
+    const panel = state.contextualEditing.panelElement;
 
-    if (!transitionIdToApply && !paramsToApply) { // Coming from inline panel
-      const panel = state.contextualEditing.panelElement;
-      if (!panel || !activeTransitionItem) {
-        showNotification("No active transition selected or panel not found.", "error");
-        return;
-      }
-      panel.querySelectorAll('#inline-panel-controls [data-param-id]').forEach(inputEl => {
-        transitionParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
-      });
-    }
-    if (!activeTransitionItem) {
-      showNotification("Transition definition not found.", "error");
+    if (!panel || !activeTransitionItem) {
+      showNotification("No active transition selected or panel not found.", "error");
       return;
     }
-    const currentTransitionId = activeTransitionItem.id;
+    panel.querySelectorAll('#inline-panel-controls [data-param-id]').forEach(inputEl => {
+      transitionParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
+    });
 
-    state.playlist.transitions[playlistIndex] = { transitionId: currentTransitionId, params: transitionParams };
+    state.playlist.transitions[playlistIndex] = { transitionId: activeTransitionItem.id, params: transitionParams };
     showNotification(`Transition ${activeTransitionItem.name} applied before item ${playlistIndex + 1}.`, 'success');
     saveMediaList(); updatePlaylistUI();
+    hideInlinePanel();
   };
+
+  const applyOutroTransition = (playlistItemIndex, transitionId) => {
+    const transitionDefinition = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionId);
+    if (!transitionDefinition) {
+      showNotification(`Transition definition for ID "${transitionId}" not found.`, "error");
+      return;
+    }
+
+    const defaultParams = {};
+    transitionDefinition.params.forEach(param => {
+      defaultParams[param.id] = param.value;
+    });
+
+    state.playlist.transitions[playlistItemIndex] = {
+      transitionId: transitionId,
+      params: defaultParams
+    };
+
+    const mediaItem = state.mediaLibrary.find(m => m.id === state.playlist.items[playlistItemIndex]);
+    showNotification(`Transition '${transitionDefinition.name}' set for '${mediaItem ? mediaItem.name : `item ${playlistItemIndex + 1`}'.`, 'success');
+    saveMediaList();
+    updatePlaylistUI();
+    WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+    };
+
 
   const handleFileSelect = async (files) => {
     if (!files || files.length === 0) return;
@@ -595,16 +649,15 @@ const MediaModule = (() => {
     return thumbnail;
   };
 
-  // REMOVED CONFIRMATION MODAL FOR MEDIA LIBRARY DELETE
   const handleMediaDelete = (media) => {
     const mediaId = media.id;
     if (state.selection.items.has(mediaId) && state.selection.items.size > 1) {
       const itemsToDelete = Array.from(state.selection.items);
-      itemsToDelete.forEach(id => deleteMedia(id, true)); // Suppress individual notifications
+      itemsToDelete.forEach(id => deleteMedia(id, true));
       clearSelection();
       showNotification(`${itemsToDelete.length} items deleted.`, 'info');
     } else {
-      deleteMedia(mediaId); // This will show its own notification
+      deleteMedia(mediaId);
     }
   };
 
@@ -670,7 +723,18 @@ const MediaModule = (() => {
     else {
       state.playlist.items.splice(insertAtIndex, 0, mediaId);
       if (state.playlist.isPlaying && insertAtIndex <= state.playlist.currentIndex) state.playlist.currentIndex++;
-      const newTransitions = {}; Object.keys(state.playlist.transitions).sort((a,b) => parseInt(b) - parseInt(a)).forEach(keyStr => { const oldKey = parseInt(keyStr); const transData = state.playlist.transitions[oldKey]; if (oldKey >= insertAtIndex) newTransitions[oldKey + 1] = transData; else newTransitions[oldKey] = transData; }); state.playlist.transitions = newTransitions;
+      // Adjust transitions object keys if inserting in the middle
+      const newTransitions = {};
+      Object.keys(state.playlist.transitions).sort((a, b) => parseInt(b) - parseInt(a)).forEach(keyStr => {
+          const oldKey = parseInt(keyStr);
+          const transData = state.playlist.transitions[oldKey];
+          if (oldKey >= insertAtIndex) {
+              newTransitions[oldKey + 1] = transData; // Shift transitions for items after insertion point
+          } else {
+              newTransitions[oldKey] = transData;
+          }
+      });
+      state.playlist.transitions = newTransitions;
     }
     if (wasEmpty && state.playlist.items.length > 0) state.playlist.currentIndex = 0;
     updatePlaylistUI(); saveMediaList(); showNotification(`Added to playlist: ${media.name}`, 'success');
@@ -678,16 +742,26 @@ const MediaModule = (() => {
 
   const removeFromPlaylist = (index) => {
     if (index < 0 || index >= state.playlist.items.length) return;
-    state.playlist.items.splice(index, 1); delete state.playlist.transitions[index];
+    state.playlist.items.splice(index, 1);
+    // Remove the transition associated with the removed item and shift subsequent ones
     const newTransitions = {};
-    for (const key in state.playlist.transitions) { const oldKey = parseInt(key); if (oldKey > index) newTransitions[oldKey - 1] = state.playlist.transitions[key]; else if (oldKey < index) newTransitions[oldKey] = state.playlist.transitions[key]; }
+    for (const key in state.playlist.transitions) {
+        const oldKey = parseInt(key);
+        if (oldKey === index) continue; // Skip the transition for the removed item
+        if (oldKey > index) {
+            newTransitions[oldKey - 1] = state.playlist.transitions[key]; // Shift down
+        } else {
+            newTransitions[oldKey] = state.playlist.transitions[key];
+        }
+    }
     state.playlist.transitions = newTransitions;
+
     if (state.playlist.isPlaying) {
       if (index === state.playlist.currentIndex) { if (state.playlist.items.length > 0) { state.playlist.currentIndex = Math.min(index, state.playlist.items.length - 1); playMediaByIndex(state.playlist.currentIndex); } else stopPlaylist(); }
       else if (index < state.playlist.currentIndex) state.playlist.currentIndex--;
     } else {
       if (state.playlist.currentIndex >= state.playlist.items.length) state.playlist.currentIndex = Math.max(0, state.playlist.items.length - 1);
-      else if (index < state.playlist.currentIndex) state.playlist.currentIndex--;
+      else if (index < state.playlist.currentIndex) state.playlist.currentIndex--; // Decrement if removed item was before current
       if (state.playlist.items.length === 0) state.playlist.currentIndex = -1;
     }
     updatePlaylistUI(); saveMediaList();
@@ -696,11 +770,40 @@ const MediaModule = (() => {
   const reorderPlaylistItem = (fromIndex, toIndex) => {
     if (fromIndex < 0 || fromIndex >= state.playlist.items.length || toIndex < 0 || toIndex > state.playlist.items.length || fromIndex === toIndex) return;
     try {
-      const itemToMove = state.playlist.items.splice(fromIndex, 1)[0]; state.playlist.items.splice(toIndex, 0, itemToMove);
-      const oldTransitions = JSON.parse(JSON.stringify(state.playlist.transitions)); const newTransitions = {};
-      const itemMovedTransition = oldTransitions[fromIndex]; delete oldTransitions[fromIndex];
-      Object.keys(oldTransitions).forEach(keyStr => { let currentKey = parseInt(keyStr); let newKey = currentKey; const transData = oldTransitions[keyStr]; if (fromIndex < toIndex) { if (currentKey > fromIndex && currentKey <= toIndex) newKey = currentKey - 1; } else { if (currentKey >= toIndex && currentKey < fromIndex) newKey = currentKey + 1; } if (transData) newTransitions[newKey] = transData; });
-      if (itemMovedTransition) newTransitions[toIndex] = itemMovedTransition; state.playlist.transitions = newTransitions;
+      const itemToMove = state.playlist.items.splice(fromIndex, 1)[0];
+      state.playlist.items.splice(toIndex, 0, itemToMove);
+
+      // Re-key transitions object
+      const oldTransitions = JSON.parse(JSON.stringify(state.playlist.transitions));
+      const newTransitions = {};
+      // const movedItemTransition = oldTransitions[fromIndex]; // Transition associated with the item being moved
+
+      // Create a map of oldIndex -> newIndex
+      const indexMap = {};
+      let currentOldIdx = 0;
+      for (let newIdx = 0; newIdx < state.playlist.items.length; newIdx++) {
+          if (newIdx === toIndex && state.playlist.items[newIdx] === itemToMove) { // This is the moved item's new position
+              indexMap[fromIndex] = newIdx;
+          } else {
+              if (currentOldIdx === fromIndex) currentOldIdx++; // Skip the original position of the moved item
+              if(currentOldIdx < state.playlist.items.length +1 ) { // Check boundary
+                indexMap[currentOldIdx] = newIdx;
+                currentOldIdx++;
+              }
+          }
+      }
+
+      // Apply transitions to new keys
+      for (const oldKeyStr in oldTransitions) {
+          const oldKey = parseInt(oldKeyStr);
+          const newKey = indexMap[oldKey];
+          if (newKey !== undefined && oldTransitions[oldKey]) {
+              newTransitions[newKey] = oldTransitions[oldKey];
+          }
+      }
+      state.playlist.transitions = newTransitions;
+
+
       if (state.playlist.currentIndex === fromIndex) state.playlist.currentIndex = toIndex;
       else if (state.playlist.currentIndex > fromIndex && state.playlist.currentIndex <= toIndex) state.playlist.currentIndex--;
       else if (state.playlist.currentIndex < fromIndex && state.playlist.currentIndex >= toIndex) state.playlist.currentIndex++;
@@ -763,10 +866,17 @@ const MediaModule = (() => {
     if (index < 0 || index >= state.playlist.items.length) { if (state.playlist.items.length > 0) { index = 0; state.playlist.currentIndex = 0; } else { stopPlaylist(); return; }}
     const mediaId = state.playlist.items[index]; const media = state.mediaLibrary.find(m => m.id === mediaId);
     if (!media) { showNotification(`Media "${mediaId}" not found. Skipping.`, 'warning'); if (state.playlist.isPlaying) { state.playlist.items.splice(index, 1); if (index <= state.playlist.currentIndex) state.playlist.currentIndex--; if (state.playlist.items.length === 0) { stopPlaylist(); return; } const nextIdxTry = Math.max(0, Math.min(index, state.playlist.items.length - 1)); playNextItem(nextIdxTry); } return; }
-    state.playlist.currentIndex = index; state.playlist.isPlaying = true;
-    const oldElement = state.dom.mediaContainer.firstChild; const newElement = createMediaElement(media, true);
+
+    state.playlist.currentIndex = index;
+    state.playlist.isPlaying = true;
+
+    const oldElement = state.dom.mediaContainer.firstChild;
+    const newElement = createMediaElement(media, true);
+
     if (!newElement) { showNotification(`Error playing ${media.name}. Skipping.`, "error"); if (state.playlist.isPlaying) setTimeout(() => playNextItem(), 100); return; }
+
     const transitionData = state.playlist.transitions[index];
+
     if (oldElement && transitionData && CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionData.transitionId)) {
       newElement.style.opacity = '0'; state.dom.mediaContainer.appendChild(newElement);
       const duration = transitionData.params.duration || 500;
@@ -783,12 +893,17 @@ const MediaModule = (() => {
     if (!state.playlist.isPlaying || state.playlist.items.length === 0) { stopPlaylist(); return; }
     if (state.playlist.advancingInProgress) return;
     state.playlist.advancingInProgress = true; clearPlaybackTimers(); let nextIndex;
+
     if (state.playlist.shuffle) { if (state.playlist.playedInShuffle.size >= state.playlist.items.length) state.playlist.playedInShuffle.clear(); const available = state.playlist.items.filter(id => !state.playlist.playedInShuffle.has(id)); if (available.length === 0) { state.playlist.playedInShuffle.clear(); nextIndex = Math.floor(Math.random() * state.playlist.items.length); } else { const randomAvailId = available[Math.floor(Math.random() * available.length)]; nextIndex = state.playlist.items.indexOf(randomAvailId); }}
     else { nextIndex = (state.playlist.currentIndex + 1) % state.playlist.items.length; }
     if (startIndex !== -1 && startIndex >= 0 && startIndex < state.playlist.items.length) nextIndex = startIndex;
-    state.playlist.currentIndex = nextIndex; playMediaByIndex(nextIndex);
+
+    state.playlist.currentIndex = nextIndex;
+    playMediaByIndex(nextIndex);
+
     setTimeout(() => { state.playlist.advancingInProgress = false; }, 200);
   };
+
 
   const clearPlaybackTimers = () => { if (state.playlist.playbackTimer) { clearTimeout(state.playlist.playbackTimer); state.playlist.playbackTimer = null; }};
   const toggleShuffle = () => { state.playlist.shuffle = !state.playlist.shuffle; if (state.playlist.shuffle) { state.playlist.playedInShuffle.clear(); if (state.playlist.isPlaying && state.playlist.items.length > 0 && state.playlist.currentIndex >=0) { const currentMediaIdShuffle = state.playlist.items[state.playlist.currentIndex]; if(currentMediaIdShuffle) state.playlist.playedInShuffle.add(currentMediaIdShuffle); }} updatePlaylistUI(); saveMediaList(); showNotification(state.playlist.shuffle ? 'Shuffle: On' : 'Shuffle: Off', 'info'); };
@@ -802,17 +917,37 @@ const MediaModule = (() => {
     if (mediaToDelete.thumbnail && mediaToDelete.thumbnail.startsWith('blob:')) URL.revokeObjectURL(mediaToDelete.thumbnail);
     state.mediaLibrary.splice(indexInLibrary, 1);
     let wasPlayingDeletedItem = false; let deletedItemOriginalPlaylistIndex = -1;
-    for (let i = state.playlist.items.length - 1; i >= 0; i--) {
-      if (state.playlist.items[i] === id) {
-        if (state.playlist.isPlaying && i === state.playlist.currentIndex) { wasPlayingDeletedItem = true; deletedItemOriginalPlaylistIndex = i; }
-        state.playlist.items.splice(i, 1); delete state.playlist.transitions[i];
-        const newTransitions = {}; Object.keys(state.playlist.transitions).forEach(keyStr => { const oldKey = parseInt(keyStr); if (oldKey > i) newTransitions[oldKey - 1] = state.playlist.transitions[keyStr]; else if (oldKey < i) newTransitions[oldKey] = state.playlist.transitions[keyStr]; }); state.playlist.transitions = newTransitions;
-        if (i < state.playlist.currentIndex) state.playlist.currentIndex--;
-      }
+
+    const newPlaylistItems = [];
+    const newTransitions = {};
+    let newCurrentIndex = state.playlist.currentIndex;
+
+    for (let i = 0; i < state.playlist.items.length; i++) {
+        if (state.playlist.items[i] === id) {
+            if (state.playlist.isPlaying && i === state.playlist.currentIndex) {
+                wasPlayingDeletedItem = true;
+                deletedItemOriginalPlaylistIndex = i;
+            }
+            if (i < newCurrentIndex) {
+                newCurrentIndex--;
+            }
+        } else {
+            const newItemIndex = newPlaylistItems.length;
+            newPlaylistItems.push(state.playlist.items[i]);
+            if (state.playlist.transitions[i]) {
+                newTransitions[newItemIndex] = state.playlist.transitions[i];
+            }
+        }
     }
-    if (wasPlayingDeletedItem) { if (state.playlist.items.length > 0) { const nextIdxPlay = Math.min(deletedItemOriginalPlaylistIndex, state.playlist.items.length - 1); state.playlist.currentIndex = nextIdxPlay; playMediaByIndex(nextIdxPlay); } else stopPlaylist(); }
+    state.playlist.items = newPlaylistItems;
+    state.playlist.transitions = newTransitions;
+    state.playlist.currentIndex = newCurrentIndex;
+
+
+    if (wasPlayingDeletedItem) { if (state.playlist.items.length > 0) { state.playlist.currentIndex = Math.min(deletedItemOriginalPlaylistIndex, state.playlist.items.length - 1); playMediaByIndex(state.playlist.currentIndex); } else stopPlaylist(); }
     else if (state.playlist.currentIndex >= state.playlist.items.length && state.playlist.items.length > 0) state.playlist.currentIndex = state.playlist.items.length - 1;
     else if (state.playlist.items.length === 0) { state.playlist.currentIndex = -1; stopPlaylist(); }
+
     const currentMediaEl = state.dom.mediaContainer.querySelector(`[src="${mediaToDelete.url}"], video[data-media-id="${id}"]`);
     if (currentMediaEl) { clearMediaDisplay(); updateActiveHighlight(null); }
     if (state.mediaLibrary.length === 0) clearPlaylistLogic(); else updatePlaylistUI();
@@ -830,155 +965,230 @@ const MediaModule = (() => {
       zone.appendChild(transDisplay);
     } else {
       const addBtn = createUIElement('div', { className: 'transition-add-placeholder professional-add', innerHTML: `<svg class="transition-add-icon-svg" viewBox="0 0 20 20" width="18" height="18" fill="currentColor" style="display: block; margin: auto; opacity: 0.7;"><rect x="1" y="5" width="11" height="7" rx="1" ry="1" fill-opacity="0.6"/><rect x="7" y="8" width="11" height="7" rx="1" ry="1" fill-opacity="0.6"/><rect x="8" y="6.5" width="2" height="6" fill="rgba(255,255,255,0.9)"/><rect x="6" y="8.5" width="6" height="2" fill="rgba(255,255,255,0.9)"/></svg>`});
-      zone.appendChild(addBtn);
+    zone.appendChild(addBtn);
     }
-    zone.addEventListener('click', (e) => { e.stopPropagation(); showInlinePanel(e, index, 'transition', zone); });
-    return zone;
-  };
+  zone.addEventListener('click', (e) => { e.stopPropagation(); showInlinePanel(e, index, 'transition', zone); });
+  return zone;
+};
 
-  const updatePlaylistUI = () => {
-    const playlistCont = state.dom.playlistContainer; const emptySt = state.dom.playlistEmptyState; const controlsCont = state.dom.playlistControlsContainer;
-    if (!playlistCont || !emptySt || !controlsCont) { console.error("Playlist UI elements missing."); return; }
-    const fragment = document.createDocumentFragment();
-    if (state.playlist.items.length === 0) { emptySt.style.display = 'block'; controlsCont.style.visibility = 'hidden'; }
-    else {
-      emptySt.style.display = 'none'; controlsCont.style.visibility = 'visible';
-      state.playlist.items.forEach((mediaId, index) => { const transitionZone = createTransitionZone(index); fragment.appendChild(transitionZone); const media = state.mediaLibrary.find(m => m.id === mediaId); if (media) fragment.appendChild(createPlaylistItem(media, index)); });
-    }
-    Array.from(playlistCont.querySelectorAll('.playlist-item, .playlist-transition-zone')).forEach(child => child.remove());
-    playlistCont.appendChild(fragment);
-    const shuffleBtn = document.getElementById('playlist-shuffle-button'); if (shuffleBtn) { shuffleBtn.classList.toggle('active', state.playlist.shuffle); shuffleBtn.innerHTML = state.playlist.shuffle ? '<span style="filter: grayscale(0%); color: var(--primary-color);">🔀</span> Shuffle On' : '<span style="filter: grayscale(100%);">🔀</span> Shuffle Off'; }
-    const playBtn = document.getElementById('playlist-play-button'); if (playBtn) playBtn.innerHTML = state.playlist.isPlaying ? '<span style="filter: grayscale(100%);">⏸</span> Pause' : '<span style="filter: grayscale(100%);">▶</span> Play All';
-    if (state.activeHighlight.mediaId && state.activeHighlight.sourceType === 'playlist') updateActiveHighlight(state.activeHighlight.mediaId, 'playlist');
-  };
+const updatePlaylistUI = () => {
+  const playlistCont = state.dom.playlistContainer; const emptySt = state.dom.playlistEmptyState; const controlsCont = state.dom.playlistControlsContainer;
+  if (!playlistCont || !emptySt || !controlsCont) { console.error("Playlist UI elements missing."); return; }
+  const fragment = document.createDocumentFragment();
+  if (state.playlist.items.length === 0) { emptySt.style.display = 'block'; controlsCont.style.visibility = 'hidden'; }
+  else {
+    emptySt.style.display = 'none'; controlsCont.style.visibility = 'visible';
+    state.playlist.items.forEach((mediaId, index) => {
+      const transitionZone = createTransitionZone(index);
+      fragment.appendChild(transitionZone);
 
-  const createPlaylistItem = (media, index) => {
-    const item = createUIElement('div', { className: 'playlist-item', attributes: { 'data-id': media.id, 'data-index': index.toString(), draggable: 'true' }});
-    item.addEventListener('dragstart', function(e) { e.dataTransfer.setData('application/json', JSON.stringify({ type: 'playlist-reorder', id: media.id, index: index })); e.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging'); });
-    item.addEventListener('dragend', function() { this.classList.remove('dragging'); });
-    const thumbDiv = createUIElement('div', { className: 'playlist-item-thumbnail', style: media.thumbnail ? { backgroundImage: `url(${media.thumbnail})` } : { backgroundColor: '#333' } });
-    if (!media.thumbnail) thumbDiv.textContent = media.type.charAt(0).toUpperCase(); item.appendChild(thumbDiv);
-    const infoCont = createUIElement('div', { className: 'playlist-item-info' });
-    const nameEl = createUIElement('div', { className: 'playlist-item-name', textContent: media.name });
-    const detailsEl = createUIElement('div', { className: 'playlist-item-details', textContent: `${media.type.charAt(0).toUpperCase() + media.type.slice(1)} · ${formatFileSize(media.size)}` });
-    infoCont.appendChild(nameEl); infoCont.appendChild(detailsEl); item.appendChild(infoCont);
-    const controlsWrap = createUIElement('div', {className: 'playlist-item-controls-wrap'});
-    const deleteBtn = createUIElement('button', { className: 'btn btn-icon btn-danger playlist-item-delete', innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>', attributes: { 'aria-label': `Remove ${media.name} from playlist` } });
-    controlsWrap.appendChild(deleteBtn); item.appendChild(controlsWrap);
-    if (index === state.playlist.currentIndex && state.playlist.isPlaying) { item.classList.add('current'); const playingInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' }); thumbDiv.appendChild(playingInd); }
-    return item;
-  };
-
-  const updateActiveHighlight = (mediaId, sourceType) => {
-    removeAllActiveHighlights(); if (!mediaId) { state.activeHighlight.mediaId = null; state.activeHighlight.sourceType = null; return; }
-    state.activeHighlight.mediaId = mediaId; state.activeHighlight.sourceType = sourceType; let elementToHighlight;
-    if (sourceType === 'library') { if (state.dom.mediaGallery) elementToHighlight = state.dom.mediaGallery.querySelector(`.media-thumbnail[data-id="${mediaId}"]`); }
-    else if (sourceType === 'playlist') {
-      if (state.dom.playlistContainer) {
-        const playlistElements = state.dom.playlistContainer.querySelectorAll('.playlist-item');
-        playlistElements.forEach((el) => {
-          if (el.dataset.id === mediaId) { elementToHighlight = el; el.classList.add('current'); const thumbDiv = el.querySelector('.playlist-item-thumbnail'); if (state.playlist.isPlaying && thumbDiv) { const exInd = thumbDiv.querySelector('.playlist-item-playing-indicator'); if (!exInd) { const newInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' }); thumbDiv.appendChild(newInd); }}}
-          else { el.classList.remove('current'); const indicator = el.querySelector('.playlist-item-playing-indicator'); if (indicator) indicator.remove(); }
-        });
-      }
-    }
-    if (elementToHighlight) elementToHighlight.classList.add('playing-from-here');
-  };
-
-  const removeAllActiveHighlights = () => { document.querySelectorAll('.media-thumbnail.playing-from-here, .playlist-item.playing-from-here').forEach(el => el.classList.remove('playing-from-here')); if(state.dom.playlistContainer) { state.dom.playlistContainer.querySelectorAll('.playlist-item.current').forEach(el => { el.classList.remove('current'); const indicator = el.querySelector('.playlist-item-playing-indicator'); if (indicator) indicator.remove(); }); }};
-
-  const saveMediaList = () => { try { const mediaForStorage = state.mediaLibrary.map(media => { const { url, thumbnail, ...mediaMeta } = media; return { ...mediaMeta, originalUrlExists: !!url, originalThumbnailExists: !!thumbnail, settings: media.settings || {effects: []} }; }); const storageData = { media: mediaForStorage, playlist: { items: state.playlist.items, shuffle: state.playlist.shuffle, transitions: state.playlist.transitions || {} } }; localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(storageData)); } catch (e) { console.error('Failed to save media list:', e); showNotification('Error saving library.', 'error');}};
-  const loadSavedMedia = () => { try { const saved = localStorage.getItem(CONSTANTS.STORAGE_KEY); if (!saved) { const oldSaved = localStorage.getItem(CONSTANTS.STORAGE_KEY_OLD); if (oldSaved) { try { const oldParsed = JSON.parse(oldSaved); if (oldParsed.media?.length > 0) showNotification(`Found old library data. Re-import files.`, 'warning', 10000); localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD); } catch (oldErr) { console.warn("Error parsing old data, removing:", oldErr); localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD); }} updateMediaGallery(); updatePlaylistUI(); return; } const parsed = JSON.parse(saved); if (parsed.media?.length > 0) showNotification(`Loaded metadata for ${parsed.media.length} entries. Re-import files.`, 'info', 7000); state.mediaLibrary = (parsed.media || []).map(media => ({ ...media, url: null, thumbnail: createFallbackThumbnail(media.type), settings: media.settings || { effects: [] } })); state.playlist.items = parsed.playlist?.items || []; state.playlist.shuffle = parsed.playlist?.shuffle || false; state.playlist.transitions = parsed.playlist?.transitions || {}; updateMediaGallery(); updatePlaylistUI(); } catch (e) { console.error('Failed to load media:', e); localStorage.removeItem(CONSTANTS.STORAGE_KEY); updateMediaGallery(); updatePlaylistUI(); showNotification('Error loading saved media.', 'error');}};
-
-  const formatFileSize = (bytes) => { if (bytes === 0 || !bytes || isNaN(bytes)) return '0 B'; const k = 1024; const sizes = ['B', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]; };
-  const showNotification = (message, type = 'info', duration = (typeof WallpaperApp !== 'undefined' ? WallpaperApp.config.notificationDuration : 3000)) => { if (typeof WallpaperApp !== 'undefined' && typeof WallpaperApp.UI?.showNotification === 'function') WallpaperApp.UI.showNotification(message, type, duration); else console.log(`[${type?.toUpperCase() || 'INFO'}] ${message}`); };
-
-  // NEW: Getter for available effects (for L2 menu population)
-  const getAvailableEffects = () => CONSTANTS.AVAILABLE_EFFECTS;
-  // NEW: Getter for available transitions (for L2 menu population)
-  const getAvailableTransitions = () => CONSTANTS.AVAILABLE_TRANSITIONS;
-
-  // NEW: Function to populate parameter controls in L2 submenus
-  const getParamsFor = (itemId, itemType, controlsContainerElement, targetApplyId, targetApplyType) => {
-    if (!controlsContainerElement) {
-      console.error("[MediaModule.getParamsFor] Controls container element is missing.");
-      return;
-    }
-    controlsContainerElement.innerHTML = ''; // Clear previous controls
-
-    const definitionList = itemType === 'effect' ? CONSTANTS.AVAILABLE_EFFECTS : CONSTANTS.AVAILABLE_TRANSITIONS;
-    const itemDefinition = definitionList.find(def => def.id === itemId);
-
-    if (!itemDefinition) {
-      controlsContainerElement.innerHTML = `<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Definition for ${itemType} "${itemId}" not found.</p>`;
-      return;
-    }
-
-    // Populate controls (similar to populateInlinePanelControls)
-    itemDefinition.params.forEach(param => {
-      const paramGroup = createUIElement('div', { className: 'form-group' }); // Use existing form-group for styling
-      const label = createUIElement('label', { textContent: param.name, attributes: {'for': `l2-param-${param.id}`} });
-      paramGroup.appendChild(label);
-      let input;
-      // For L2 menu, we typically start with default values, as there's no "existing" setting being edited directly from a specific item
-      const currentValue = param.value;
-
-      if (param.type === 'slider') {
-        input = createUIElement('input', { type: 'range', className:'parameter-slider', id: `l2-param-${param.id}`, min: param.min, max: param.max, value: currentValue, attributes: { 'data-param-id': param.id }});
-        const unitDisplay = param.unit || '';
-        const valueSpan = createUIElement('span', {textContent: `${currentValue}${unitDisplay}`, className: 'parameter-value'});
-        input.addEventListener('input', (e) => { valueSpan.textContent = `${e.target.value}${unitDisplay}`; });
-        paramGroup.appendChild(input);
-        paramGroup.appendChild(valueSpan);
-      } else if (param.type === 'select') {
-        input = createUIElement('select', { id: `l2-param-${param.id}`, className:'parameter-select', attributes: { 'data-param-id': param.id } });
-        param.options.forEach(opt => {
-          const optionEl = createUIElement('option', { textContent: opt, value: opt });
-          if (opt === currentValue) optionEl.selected = true;
-          input.appendChild(optionEl);
-        });
-        paramGroup.appendChild(input);
-      }
-      controlsContainerElement.appendChild(paramGroup);
+      const media = state.mediaLibrary.find(m => m.id === mediaId);
+      if (media) fragment.appendChild(createPlaylistItem(media, index));
     });
+    if (state.playlist.items.length > 0) {
+      const finalTransitionZone = createTransitionZone(state.playlist.items.length);
+      fragment.appendChild(finalTransitionZone);
+    }
+  }
+  Array.from(playlistCont.querySelectorAll('.playlist-item, .playlist-transition-zone')).forEach(child => child.remove());
+  playlistCont.appendChild(fragment);
+  const shuffleBtn = document.getElementById('playlist-shuffle-button'); if (shuffleBtn) { shuffleBtn.classList.toggle('active', state.playlist.shuffle); shuffleBtn.innerHTML = state.playlist.shuffle ? '<span style="filter: grayscale(0%); color: var(--primary-color);">🔀</span> Shuffle On' : '<span style="filter: grayscale(100%);">🔀</span> Shuffle Off'; }
+  const playBtn = document.getElementById('playlist-play-button'); if (playBtn) playBtn.innerHTML = state.playlist.isPlaying ? '<span style="filter: grayscale(100%);">⏸</span> Pause' : '<span style="filter: grayscale(100%);">▶</span> Play All';
+  if (state.activeHighlight.mediaId && state.activeHighlight.sourceType === 'playlist') updateActiveHighlight(state.activeHighlight.mediaId, 'playlist');
+};
 
-    // Add Apply button
-    const applyBtn = createUIElement('button', { textContent: 'Apply to Target', className: 'btn btn-primary apply-params-btn' });
-    applyBtn.addEventListener('click', () => {
-      if (targetApplyId === null || targetApplyId === undefined) {
-        showNotification(`No target selected to apply ${itemType}. Please select an item.`, 'warning');
-        return;
-      }
+const createPlaylistItem = (media, index) => {
+  const item = createUIElement('div', { className: 'playlist-item', attributes: { 'data-id': media.id, 'data-index': index.toString(), draggable: 'true' }});
+  item.addEventListener('dragstart', function(e) { e.dataTransfer.setData('application/json', JSON.stringify({ type: 'playlist-reorder', id: media.id, index: index })); e.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging'); });
+  item.addEventListener('dragend', function() { this.classList.remove('dragging'); });
+  const thumbDiv = createUIElement('div', { className: 'playlist-item-thumbnail', style: media.thumbnail ? { backgroundImage: `url(${media.thumbnail})` } : { backgroundColor: '#333' } });
+  if (!media.thumbnail) thumbDiv.textContent = media.type.charAt(0).toUpperCase(); item.appendChild(thumbDiv);
+  const infoCont = createUIElement('div', { className: 'playlist-item-info' });
+  const nameEl = createUIElement('div', { className: 'playlist-item-name', textContent: media.name });
+  const detailsEl = createUIElement('div', { className: 'playlist-item-details', textContent: `${media.type.charAt(0).toUpperCase() + media.type.slice(1)} · ${formatFileSize(media.size)}` });
+  infoCont.appendChild(nameEl); infoCont.appendChild(detailsEl); item.appendChild(infoCont);
 
-      const collectedParams = {};
-      controlsContainerElement.querySelectorAll('[data-param-id]').forEach(inputEl => {
-        collectedParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
+  const controlsWrap = createUIElement('div', {className: 'playlist-item-controls-wrap'});
+
+  const setTransitionButton = createUIElement('button', {
+    className: 'btn btn-icon playlist-item-set-transition-btn',
+    innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h2v12H4zm4 0V6h8v12H8zm10 0V6h2v12h-2z"></path></svg>',
+    attributes: { 'aria-label': `Set transition for ${media.name}`, title: 'Set Outro Transition' }
+  });
+  controlsWrap.appendChild(setTransitionButton);
+
+  const deleteBtn = createUIElement('button', { className: 'btn btn-icon btn-danger playlist-item-delete', innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>', attributes: { 'aria-label': `Remove ${media.name} from playlist` } });
+  controlsWrap.appendChild(deleteBtn);
+  item.appendChild(controlsWrap);
+
+  if (index === state.playlist.currentIndex && state.playlist.isPlaying) {
+    item.classList.add('current');
+    const playingInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
+    thumbDiv.appendChild(playingInd);
+  }
+
+  const outroTransitionData = state.playlist.transitions[index];
+  if (outroTransitionData) {
+    const transInfo = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === outroTransitionData.transitionId);
+    setTransitionButton.innerHTML = `<span style="font-size: 0.7em; color: var(--primary-color);">${transInfo ? transInfo.name.substring(0,1).toUpperCase() : 'T'}</span>`;
+    setTransitionButton.title = `Transition: ${transInfo ? transInfo.name : 'Custom'}`;
+    setTransitionButton.classList.add('has-transition');
+  }
+
+  return item;
+};
+
+const updateActiveHighlight = (mediaId, sourceType) => {
+  removeAllActiveHighlights(); if (!mediaId) { state.activeHighlight.mediaId = null; state.activeHighlight.sourceType = null; return; }
+  state.activeHighlight.mediaId = mediaId; state.activeHighlight.sourceType = sourceType; let elementToHighlight;
+  if (sourceType === 'library') { if (state.dom.mediaGallery) elementToHighlight = state.dom.mediaGallery.querySelector(`.media-thumbnail[data-id="${mediaId}"]`); }
+  else if (sourceType === 'playlist') {
+    if (state.dom.playlistContainer) {
+      const playlistElements = state.dom.playlistContainer.querySelectorAll('.playlist-item');
+      playlistElements.forEach((el) => {
+        if (el.dataset.id === mediaId) { elementToHighlight = el; el.classList.add('current'); const thumbDiv = el.querySelector('.playlist-item-thumbnail'); if (state.playlist.isPlaying && thumbDiv) { const exInd = thumbDiv.querySelector('.playlist-item-playing-indicator'); if (!exInd) { const newInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' }); thumbDiv.appendChild(newInd); }}}
+        else { el.classList.remove('current'); const indicator = el.querySelector('.playlist-item-playing-indicator'); if (indicator) indicator.remove(); }
       });
+    }
+  }
+  if (elementToHighlight) elementToHighlight.classList.add('playing-from-here');
+};
 
-      if (itemType === 'effect' && targetApplyType === 'effect') {
-        applyEffect(targetApplyId, itemId, collectedParams);
-      } else if (itemType === 'transition' && targetApplyType === 'transition') {
-        // targetApplyId for transitions from L2 menu would likely be a playlist index.
-        // This requires careful management of `WallpaperApp.MenuTools.currentTargetId`
-        applyTransition(targetApplyId, itemId, collectedParams);
-      } else {
-        showNotification(`Cannot apply ${itemType}: Mismatched target type or invalid target.`, 'error');
-      }
+const removeAllActiveHighlights = () => { document.querySelectorAll('.media-thumbnail.playing-from-here, .playlist-item.playing-from-here').forEach(el => el.classList.remove('playing-from-here')); if(state.dom.playlistContainer) { state.dom.playlistContainer.querySelectorAll('.playlist-item.current').forEach(el => { el.classList.remove('current'); const indicator = el.querySelector('.playlist-item-playing-indicator'); if (indicator) indicator.remove(); }); }};
+
+const saveMediaList = () => { try { const mediaForStorage = state.mediaLibrary.map(media => { const { url, thumbnail, ...mediaMeta } = media; return { ...mediaMeta, originalUrlExists: !!url, originalThumbnailExists: !!thumbnail, settings: media.settings || {effects: []} }; }); const storageData = { media: mediaForStorage, playlist: { items: state.playlist.items, shuffle: state.playlist.shuffle, transitions: state.playlist.transitions || {} } }; localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(storageData)); } catch (e) { console.error('Failed to save media list:', e); showNotification('Error saving library.', 'error');}};
+const loadSavedMedia = () => { try { const saved = localStorage.getItem(CONSTANTS.STORAGE_KEY); if (!saved) { const oldSaved = localStorage.getItem(CONSTANTS.STORAGE_KEY_OLD); if (oldSaved) { try { const oldParsed = JSON.parse(oldSaved); if (oldParsed.media?.length > 0) showNotification(`Found old library data. Re-import files.`, 'warning', 10000); localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD); } catch (oldErr) { console.warn("Error parsing old data, removing:", oldErr); localStorage.removeItem(CONSTANTS.STORAGE_KEY_OLD); }} updateMediaGallery(); updatePlaylistUI(); return; } const parsed = JSON.parse(saved); if (parsed.media?.length > 0) showNotification(`Loaded metadata for ${parsed.media.length} entries. Re-import files.`, 'info', 7000); state.mediaLibrary = (parsed.media || []).map(media => ({ ...media, url: null, thumbnail: createFallbackThumbnail(media.type), settings: media.settings || { effects: [] } })); state.playlist.items = parsed.playlist?.items || []; state.playlist.shuffle = parsed.playlist?.shuffle || false; state.playlist.transitions = parsed.playlist?.transitions || {}; updateMediaGallery(); updatePlaylistUI(); } catch (e) { console.error('Failed to load media:', e); localStorage.removeItem(CONSTANTS.STORAGE_KEY); updateMediaGallery(); updatePlaylistUI(); showNotification('Error loading saved media.', 'error');}};
+
+const formatFileSize = (bytes) => { if (bytes === 0 || !bytes || isNaN(bytes)) return '0 B'; const k = 1024; const sizes = ['B', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]; };
+const showNotification = (message, type = 'info', duration = (typeof WallpaperApp !== 'undefined' ? WallpaperApp.config.notificationDuration : 3000)) => { if (typeof WallpaperApp !== 'undefined' && typeof WallpaperApp.UI?.showNotification === 'function') WallpaperApp.UI.showNotification(message, type, duration); else console.log(`[${type?.toUpperCase() || 'INFO'}] ${message}`); };
+
+const getAvailableEffects = () => CONSTANTS.AVAILABLE_EFFECTS;
+const getAvailableTransitions = () => CONSTANTS.AVAILABLE_TRANSITIONS;
+
+const getParamsFor = (itemId, itemType, controlsContainerElement, targetApplyId, targetApplyType) => {
+  if (!controlsContainerElement) {
+    console.error("[MediaModule.getParamsFor] Controls container element is missing.");
+    return;
+  }
+  controlsContainerElement.innerHTML = '';
+
+  const definitionList = itemType === 'effect' ? CONSTANTS.AVAILABLE_EFFECTS : CONSTANTS.AVAILABLE_TRANSITIONS;
+  const itemDefinition = definitionList.find(def => def.id === itemId);
+
+  if (!itemDefinition) {
+    controlsContainerElement.innerHTML = `<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Definition for ${itemType} "${itemId}" not found.</p>`;
+    return;
+  }
+
+  itemDefinition.params.forEach(param => {
+    const paramGroup = createUIElement('div', { className: 'form-group' });
+    const label = createUIElement('label', { textContent: param.name, attributes: {'for': `l2-param-${param.id}`} });
+    paramGroup.appendChild(label);
+    let input;
+    const currentValue = param.value;
+
+    if (param.type === 'slider') {
+      input = createUIElement('input', { type: 'range', className:'parameter-slider', id: `l2-param-${param.id}`, min: param.min, max: param.max, value: currentValue, attributes: { 'data-param-id': param.id }});
+      const unitDisplay = param.unit || '';
+      const valueSpan = createUIElement('span', {textContent: `${currentValue}${unitDisplay}`, className: 'parameter-value'});
+      input.addEventListener('input', (e) => { valueSpan.textContent = e.target.value + unitDisplay; });
+      paramGroup.appendChild(input);
+      paramGroup.appendChild(valueSpan);
+    } else if (param.type === 'select') {
+      input = createUIElement('select', { id: `l2-param-${param.id}`, className:'parameter-select', attributes: { 'data-param-id': param.id } });
+      param.options.forEach(opt => {
+        const optionEl = createUIElement('option', { textContent: opt, value: opt });
+        if (opt === currentValue) optionEl.selected = true;
+        input.appendChild(optionEl);
+      });
+      paramGroup.appendChild(input);
+    }
+    controlsContainerElement.appendChild(paramGroup);
+  });
+
+  const applyBtn = createUIElement('button', { textContent: 'Apply to Target', className: 'btn btn-primary apply-params-btn' });
+  applyBtn.addEventListener('click', () => {
+    if (targetApplyId === null || targetApplyId === undefined) {
+      showNotification(`No target selected to apply ${itemType}. Please select an item.`, 'warning');
+      return;
+    }
+
+    const collectedParams = {};
+    controlsContainerElement.querySelectorAll('[data-param-id]').forEach(inputEl => {
+      collectedParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
     });
-    controlsContainerElement.appendChild(applyBtn);
+
+    if (itemType === 'effect' && targetApplyType === 'effect') {
+      applyEffect(targetApplyId, itemId, collectedParams);
+    } else if (itemType === 'transition' && targetApplyType === 'transition') {
+      state.playlist.transitions[targetApplyId] = { transitionId: itemId, params: collectedParams };
+      showNotification(`Transition ${itemDefinition.name} applied before item ${targetApplyId + 1} (via L2).`, 'success');
+      saveMediaList(); updatePlaylistUI();
+    } else {
+      showNotification(`Cannot apply ${itemType}: Mismatched target type or invalid target.`, 'error');
+    }
+  });
+  controlsContainerElement.appendChild(applyBtn);
+};
+
+const populatePerClipTransitions = (playlistItemIndex) => {
+  if (!state.dom.perClipTransitionsList) {
+    console.error("[MediaModule.populatePerClipTransitions] Panel list element not found.");
+    return;
+  }
+  state.dom.perClipTransitionsList.innerHTML = '';
+  state.contextualEditing.perClipTargetIndex = playlistItemIndex;
+
+  const currentTransition = state.playlist.transitions[playlistItemIndex];
+
+  CONSTANTS.AVAILABLE_TRANSITIONS.forEach(transitionDef => {
+    const button = createUIElement('button', {
+      className: 'submenu-item',
+      textContent: transitionDef.name,
+      attributes: { 'data-transition-id': transitionDef.id }
+    });
+
+    if (currentTransition && currentTransition.transitionId === transitionDef.id) {
+      button.classList.add('selected');
+    }
+
+    button.addEventListener('click', () => {
+      applyOutroTransition(state.contextualEditing.perClipTargetIndex, transitionDef.id);
+    });
+    state.dom.perClipTransitionsList.appendChild(button);
+  });
+  const removeButton = createUIElement('button', {
+    className: 'submenu-item btn-danger',
+    textContent: 'Remove Transition'
+  });
+  if (!currentTransition) {
+    removeButton.classList.add('disabled');
+  }
+  removeButton.addEventListener('click', () => {
+    if (currentTransition) {
+      delete state.playlist.transitions[state.contextualEditing.perClipTargetIndex];
+      const mediaItem = state.mediaLibrary.find(m => m.id === state.playlist.items[state.contextualEditing.perClipTargetIndex]);
+      showNotification(`Transition removed for '${mediaItem ? mediaItem.name : `item ${state.contextualEditing.perClipTargetIndex + 1`}'.`, 'info');
+      saveMediaList();
+      updatePlaylistUI();
+      }
+        WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+    });
+    state.dom.perClipTransitionsList.appendChild(createDivider());
+    state.dom.perClipTransitionsList.appendChild(removeButton);
   };
 
 
   return {
-    init,
-    hideContextMenu,
-    hideInlinePanel,
-    getAvailableEffects, // Expose for L2 menu population
-    getAvailableTransitions, // Expose for L2 menu population
-    getParamsFor, // Expose for L2 item parameter display
-    // _getState: () => state // For debugging
+    init: init,
+    hideContextMenu: hideContextMenu,
+    hideInlinePanel: hideInlinePanel,
+    getAvailableEffects: getAvailableEffects, 
+    getAvailableTransitions: getAvailableTransitions, 
+    getParamsFor: getParamsFor, 
+    populatePerClipTransitions: populatePerClipTransitions, 
   };
-})();
+})(); // Semicolon added for IIFE
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', MediaModule.init);
