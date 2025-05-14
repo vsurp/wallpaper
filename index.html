@@ -9,7 +9,7 @@
     // Global namespace for the application
     window.WallpaperApp = {
       config: {
-        version: '0.1.3',
+        version: '0.1.5', // Version update
         animationDuration: 300,
         tooltipDelay: 1000,
         notificationDuration: 3000
@@ -24,16 +24,12 @@
         showNotification(message, type = 'info') {
           const container = document.getElementById('notification-container');
           if (!container) {
-            console.log(`Notification (${type}): ${message}`);
+            // console.log(`Notification (${type}): ${message}`); // Avoid console log if container missing
             return;
           }
-
-          // Ensure container is visible
           if (container.children.length === 0) {
             container.style.visibility = 'visible';
           }
-
-          // Create notification
           const notification = document.createElement('div');
           notification.className = `notification ${type}`;
           notification.innerHTML = `
@@ -41,8 +37,6 @@
             <button class="btn btn-icon notification-close" aria-label="Close notification">&times;</button>
           `;
           container.appendChild(notification);
-
-          // Setup close functionality
           const closeBtn = notification.querySelector('.notification-close');
           const closeNotification = () => {
             notification.classList.remove('show');
@@ -55,30 +49,15 @@
               }
             }, 300);
           };
-
           closeBtn.addEventListener('click', closeNotification);
-
-          // Show notification
           requestAnimationFrame(() => notification.classList.add('show'));
-
-          // Auto-hide
-          setTimeout(closeNotification, 3000);
-        },
-
-        showTooltip(element, content, position = 'bottom') {
-          // TODO: Implement tooltip functionality
-        },
-
-        hideTooltip(tooltip) {
-          // TODO: Implement tooltip functionality
+          setTimeout(closeNotification, WallpaperApp.config.notificationDuration);
         },
 
         showModal(options) {
           const { id, title, content, footerButtons } = options;
           const modalContainer = document.getElementById('modal-container');
           if (!modalContainer) return;
-
-          // Create modal
           const modal = document.createElement('div');
           modal.className = 'modal acrylic acrylic-dark';
           modal.id = id || `modal-${Date.now()}`;
@@ -92,20 +71,15 @@
             </div>
             <div class="modal-footer"></div>
           `;
-
-          // Add custom content if element
           if (typeof content !== 'string' && content instanceof HTMLElement) {
             modal.querySelector('.modal-body').appendChild(content);
           }
-
-          // Add footer buttons
           const modalFooter = modal.querySelector('.modal-footer');
           if (footerButtons && footerButtons.length > 0) {
             footerButtons.forEach(btnData => {
               const button = document.createElement('button');
               button.textContent = btnData.text;
               button.className = `btn ${btnData.classes || 'btn-secondary'}`;
-
               if (btnData.onClick) {
                 button.addEventListener('click', () => {
                   if (btnData.onClick() !== false) {
@@ -115,33 +89,24 @@
               } else {
                 button.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
               }
-
               modalFooter.appendChild(button);
             });
           } else {
-            // Default OK button
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
             okButton.className = 'btn btn-primary';
             okButton.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
             modalFooter.appendChild(okButton);
           }
-
-          // Show modal
           modalContainer.appendChild(modal);
           modalContainer.style.display = 'flex';
-
-          // Bind close button
           modal.querySelector('.modal-close').addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
-
-          // Animate in
           requestAnimationFrame(() => modal.classList.add('show'));
         },
 
         hideModal(id) {
           const modalContainer = document.getElementById('modal-container');
           const modalToHide = id ? document.getElementById(id) : modalContainer?.querySelector('.modal');
-
           if (modalToHide) {
             modalToHide.classList.remove('show');
             setTimeout(() => {
@@ -151,18 +116,100 @@
                   modalContainer.style.display = 'none';
                 }
               }
-            }, 300);
+            }, WallpaperApp.config.animationDuration);
           }
         }
       },
 
       MenuTools: {
         openL2Submenu: null,
-      },
+        currentTargetId: null,
+        currentTargetType: null,
+        // New function to set up listeners for L2 items after they are populated
+        setupL2ItemListeners: function(parentElementId) {
+          const parentElement = document.getElementById(parentElementId);
+          if (!parentElement) {
+            console.warn(`[MenuTools.setupL2ItemListeners] Parent element with ID "${parentElementId}" not found.`);
+            return;
+          }
 
-      Utils: {
-        // Add utility functions here
-      }
+          const l2Items = parentElement.querySelectorAll('.submenu-item-l2');
+          console.log(`[MenuTools.setupL2ItemListeners] Found ${l2Items.length} L2 items in ${parentElementId}`);
+
+          l2Items.forEach(item => {
+            // Remove any existing click listener to prevent duplicates if called multiple times
+            // A more robust way would be to use a named function and removeEventListener,
+            // or a flag on the element. For now, this is a simple approach.
+            const newClickHandler = () => { // Define handler inside to capture current item
+              const parentMenu = item.closest('.slide-submenu-l2');
+              if (!parentMenu) return;
+
+              const effectId = item.getAttribute('data-effect-id');
+              const transitionId = item.getAttribute('data-transition-id');
+              const itemId = effectId || transitionId;
+              const itemType = effectId ? 'effect' : 'transition';
+
+              let controlsContainer = item.nextElementSibling;
+              const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
+
+              if (isNewControlsContainer) {
+                if (controlsContainer && controlsContainer.classList.contains('parameter-controls-container')) {
+                  // This case should not happen if logic is correct, but as a safeguard
+                  controlsContainer.remove();
+                }
+                controlsContainer = document.createElement('div');
+                controlsContainer.className = 'parameter-controls-container';
+                item.parentNode.insertBefore(controlsContainer, item.nextSibling);
+              }
+
+              // Always repopulate controls when an item is clicked to ensure fresh state
+              if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
+                console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}"`);
+                window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, WallpaperApp.MenuTools.currentTargetId, WallpaperApp.MenuTools.currentTargetType);
+              } else {
+                console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
+                controlsContainer.innerHTML = `<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>`;
+              }
+
+
+              const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
+
+              // Close other open parameter controls in the same L2 menu
+              parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
+                if (container !== controlsContainer) {
+                  container.classList.remove('visible');
+                  container.style.maxHeight = '0px';
+                  const prevSibling = container.previousElementSibling;
+                  if (prevSibling && prevSibling.classList.contains('submenu-item-l2')) {
+                    prevSibling.classList.remove('expanded');
+                  }
+                }
+              });
+              parentMenu.querySelectorAll('.submenu-item-l2.expanded').forEach(otherItem => {
+                if (otherItem !== item) otherItem.classList.remove('expanded');
+              });
+
+              if (isCurrentlyVisible) {
+                controlsContainer.classList.remove('visible');
+                controlsContainer.style.maxHeight = '0px';
+                item.classList.remove('expanded');
+              } else {
+                controlsContainer.classList.add('visible');
+                controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px"; // Expand to content height
+                item.classList.add('expanded');
+              }
+            };
+
+            // A simple way to avoid multiple listeners: store the handler on the element
+            if (item._l2ClickHandler) {
+              item.removeEventListener('click', item._l2ClickHandler);
+            }
+            item.addEventListener('click', newClickHandler);
+            item._l2ClickHandler = newClickHandler; // Store for potential removal
+          });
+        }
+      },
+      Utils: {}
     };
   </script>
 </head>
@@ -183,31 +230,26 @@
       <h1>CLUTCHBOYZ 🌐</h1>
       <button class="btn btn-icon menu-close" aria-label="Close menu">&times;</button>
     </div>
-
     <div class="menu-content">
       <div class="menu-section" data-section="main">
         <h2 style="text-align: center; width: 100%;">MENU</h2>
         <hr class="divider">
-
         <button class="category-item" data-action="import-media">MEDIA PLAYER</button>
         <button class="category-item" data-action="effects">EFFECTS</button>
         <button class="category-item" data-action="transitions">TRANSITIONS</button>
         <hr class="divider">
-
         <button class="category-item" data-action="daw-integration">DAW INTEGRATION</button>
         <button class="category-item" data-action="performance">PERFORMANCE</button>
         <button class="category-item" data-action="extra">EXTRA</button>
         <hr class="divider">
-
         <button class="category-item" data-action="config-settings">CONFIG SETTINGS</button>
         <button class="category-item" data-action="menu-settings">MENU SETTINGS</button>
         <button class="category-item" data-action="about">ABOUT</button>
         <hr class="divider">
       </div>
     </div>
-
     <div class="menu-footer">
-      <div class="version-info">v0.1.3</div>
+      <div class="version-info">v0.1.5</div>
     </div>
   </nav>
 
@@ -220,110 +262,50 @@
       <div class="menu-content"></div>
       <div class="menu-footer"></div>
     </div>
-
-    <div id="effects-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>EFFECTS (L1)</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content"><p>This L1 Effects menu is not directly used. Effects are accessed via Media Player.</p></div>
-      <div class="menu-footer"></div>
-    </div>
-
-    <div id="transitions-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>TRANSITIONS (L1)</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content"><p>This L1 Transitions menu is not directly used. Transitions are accessed via Media Player.</p></div>
-      <div class="menu-footer"></div>
-    </div>
-
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>DAW INTEGRATION</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="fl-studio-connection">FL STUDIO</button>
-          <button class="submenu-item" data-action="ableton-connection">ABLETON LIVE</button>
-          <button class="submenu-item" data-action="logic-connection">LOGIC PRO</button>
-          <button class="submenu-item" data-action="pro-tools-connection">PRO TOOLS</button>
-          <button class="submenu-item" data-action="custom-daw-connection">CUSTOM DAW</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="fl-studio-connection">FL STUDIO</button>
+        <button class="submenu-item" data-action="ableton-connection">ABLETON LIVE</button>
+        <button class="submenu-item" data-action="logic-connection">LOGIC PRO</button>
+        <button class="submenu-item" data-action="pro-tools-connection">PRO TOOLS</button>
+        <button class="submenu-item" data-action="custom-daw-connection">CUSTOM DAW</button>
+      </div></div><div class="menu-footer"></div>
     </div>
-
     <div id="performance-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>PERFORMANCE</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="perf-opt1">OPTIMIZATION 1</button>
-          <button class="submenu-item" data-action="perf-opt2">OPTIMIZATION 2</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>PERFORMANCE</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="perf-opt1">OPTIMIZATION 1</button>
+        <button class="submenu-item" data-action="perf-opt2">OPTIMIZATION 2</button>
+      </div></div><div class="menu-footer"></div>
     </div>
-
     <div id="extra-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>EXTRA</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="visualizer-styles">VISUALIZER STYLES</button>
-          <button class="submenu-item" data-action="clock-display">CLOCK DISPLAY</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>EXTRA</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="visualizer-styles">VISUALIZER STYLES</button>
+        <button class="submenu-item" data-action="clock-display">CLOCK DISPLAY</button>
+      </div></div><div class="menu-footer"></div>
     </div>
-
     <div id="config-settings-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>CONFIG SETTINGS</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="startup-behavior">STARTUP BEHAVIOR</button>
-          <button class="submenu-item" data-action="auto-save">AUTO SAVE</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>CONFIG SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="startup-behavior">STARTUP BEHAVIOR</button>
+        <button class="submenu-item" data-action="auto-save">AUTO SAVE</button>
+      </div></div><div class="menu-footer"></div>
     </div>
-
     <div id="menu-settings-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>MENU SETTINGS</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="menu-position">MENU POSITION</button>
-          <button class="submenu-item" data-action="menu-opacity">MENU OPACITY</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>MENU SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="menu-position">MENU POSITION</button>
+        <button class="submenu-item" data-action="menu-opacity">MENU OPACITY</button>
+      </div></div><div class="menu-footer"></div>
     </div>
-
     <div id="about-submenu" class="slide-submenu acrylic acrylic-dark">
-      <div class="menu-header">
-        <h1>ABOUT</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
-      </div>
-      <div class="menu-content">
-        <div class="menu-section">
-          <button class="submenu-item" data-action="app-info">APP INFORMATION</button>
-          <button class="submenu-item" data-action="credits">CREDITS</button>
-        </div>
-      </div>
-      <div class="menu-footer"></div>
+      <div class="menu-header"><h1>ABOUT</h1><button class="btn btn-icon submenu-close">&times;</button></div>
+      <div class="menu-content"><div class="menu-section">
+        <button class="submenu-item" data-action="app-info">APP INFORMATION</button>
+        <button class="submenu-item" data-action="credits">CREDITS</button>
+      </div></div><div class="menu-footer"></div>
     </div>
   </div>
 
@@ -331,15 +313,10 @@
     <div id="effects-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
       <div class="menu-header">
         <h1>EFFECTS LIST</h1>
-        <button class="btn btn-icon submenu-close-l2" aria-label="Close submenu">&times;</button>
+        <button class="btn btn-icon submenu-close-l2" aria-label="Close L2 submenu">&times;</button>
       </div>
       <div class="menu-content">
         <div class="menu-section">
-          <button class="submenu-item-l2" data-effect-id="blur">BLUR</button>
-          <button class="submenu-item-l2" data-effect-id="glow">GLOW</button>
-          <button class="submenu-item-l2" data-effect-id="grayscale">GRAYSCALE</button>
-          <button class="submenu-item-l2" data-effect-id="sepia">SEPIA</button>
-          <button class="submenu-item-l2" data-effect-id="vignette">VIGNETTE</button>
         </div>
       </div>
       <div class="menu-footer"></div>
@@ -348,15 +325,10 @@
     <div id="transitions-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
       <div class="menu-header">
         <h1>TRANSITIONS LIST</h1>
-        <button class="btn btn-icon submenu-close-l2" aria-label="Close submenu">&times;</button>
+        <button class="btn btn-icon submenu-close-l2" aria-label="Close L2 submenu">&times;</button>
       </div>
       <div class="menu-content">
         <div class="menu-section">
-          <button class="submenu-item-l2" data-transition-id="fade">FADE</button>
-          <button class="submenu-item-l2" data-transition-id="slide">SLIDE</button>
-          <button class="submenu-item-l2" data-transition-id="zoom">ZOOM</button>
-          <button class="submenu-item-l2" data-transition-id="dissolve">DISSOLVE</button>
-          <button class="submenu-item-l2" data-transition-id="custom">CUSTOM</button>
         </div>
       </div>
       <div class="menu-footer"></div>
@@ -371,442 +343,254 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
-    setupMenuSystem();
+    setupMenuSystem(); // Call this only once
 
     function setupMenuSystem() {
-      const menuTrigger = document.getElementById('menu-trigger');
-      const mainMenu = document.getElementById('main-menu');
-      const menuClose = mainMenu.querySelector('.menu-close');
-      const categoryItems = document.querySelectorAll('#main-menu .category-item');
-      const submenuWrapperL1 = document.querySelector('.submenu-wrapper');
-      const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
-      const submenuCloseButtonsL1 = document.querySelectorAll('.submenu-wrapper .submenu-close');
-      const submenuCloseButtonsL2 = document.querySelectorAll('.submenu-wrapper-l2 .submenu-close-l2');
+      try { // Wrap entire function for safety
+        const menuTrigger = document.getElementById('menu-trigger');
+        const mainMenu = document.getElementById('main-menu');
+        const menuClose = mainMenu.querySelector('.menu-close');
+        const categoryItems = document.querySelectorAll('#main-menu .category-item');
+        const submenuWrapperL1 = document.querySelector('.submenu-wrapper');
+        const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
+        const submenuCloseButtonsL1 = document.querySelectorAll('.submenu-wrapper .submenu-close');
+        const submenuCloseButtonsL2 = document.querySelectorAll('.submenu-wrapper-l2 .submenu-close-l2');
 
-      let menuAnimationTimeMs = 300;
-      try {
-        const cssValue = getComputedStyle(document.documentElement)
-                .getPropertyValue('--menu-animation-time')
-                .trim();
-        if (cssValue.endsWith('ms')) {
-          menuAnimationTimeMs = parseFloat(cssValue);
-        } else if (cssValue.endsWith('s')) {
-          menuAnimationTimeMs = parseFloat(cssValue) * 1000;
-        }
-      } catch (e) {
-        console.warn("Could not parse --menu-animation-time.", e);
-      }
-
-      // Animation utilities
-      function afterTransition(element, callback) {
-        if (!element) {
-          callback();
+        if (!mainMenu || !submenuWrapperL1 || !submenuWrapperL2) {
+          console.error("[setupMenuSystem] Critical menu elements not found. Aborting menu setup.");
           return;
         }
 
-        let fired = false;
-        const handler = (event) => {
-          if (fired) return;
-          if (event.target === element &&
-                  (event.propertyName === 'transform' || event.propertyName === 'width')) {
-            fired = true;
-            element.removeEventListener('transitionend', handler);
-            callback();
-          }
-        };
+        let menuAnimationTimeMs = WallpaperApp.config.animationDuration;
 
-        element.addEventListener('transitionend', handler);
+        function afterTransition(element, callback) {
+          if (!element) { if (callback) callback(); return; }
+          let fired = false;
+          const handler = (event) => {
+            if (fired) return;
+            if (event.target === element && (event.propertyName === 'transform' || event.propertyName === 'width' || event.propertyName === 'opacity')) {
+              fired = true;
+              element.removeEventListener('transitionend', handler);
+              if (callback) callback();
+            }
+          };
+          element.addEventListener('transitionend', handler);
+          setTimeout(() => {
+            if (!fired) {
+              fired = true;
+              element.removeEventListener('transitionend', handler);
+              if (callback) callback();
+            }
+          }, menuAnimationTimeMs + 70); // Increased timeout slightly
+        }
 
-        // Fallback timeout
-        setTimeout(() => {
-          if (!fired) {
-            fired = true;
-            element.removeEventListener('transitionend', handler);
-            callback();
-          }
-        }, menuAnimationTimeMs + 50);
-      }
-
-      // Menu management functions
-      async function closeLevel2Submenus() {
-        return new Promise(resolve => { // Removed async from new Promise as it's not needed here
-          const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
-          if (activeL2Wrapper) {
-            const activeL2Submenus = activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active');
-            activeL2Submenus.forEach(submenu => {
-              submenu.classList.remove('active');
-              // Close any open sliders in this submenu
-              submenu.querySelectorAll('.intensity-slider-container.visible').forEach(container => {
-                container.classList.remove('visible');
-                container.style.maxHeight = '0px';
+        async function closeLevel2Submenus(keepL1Open = false) {
+          return new Promise(resolve => {
+            if (!submenuWrapperL2) { resolve(); return; } // Guard against null
+            const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
+            if (activeL2Wrapper) {
+              activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active').forEach(submenu => {
+                submenu.classList.remove('active');
+                submenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
+                  container.classList.remove('visible'); container.style.maxHeight = '0px';
+                });
+                submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(item => item.classList.remove('expanded'));
               });
-              submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(item => {
-                item.classList.remove('expanded');
+              activeL2Wrapper.classList.remove('active');
+              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
+              afterTransition(activeL2Wrapper, () => {
+                if (!activeL2Wrapper.classList.contains('active')) activeL2Wrapper.style.display = 'none';
+                resolve();
               });
-            });
+            } else {
+              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
+              resolve();
+            }
+          });
+        }
 
-            activeL2Wrapper.classList.remove('active');
-            mainMenu.classList.remove('main-menu-l2-active');
-
-            afterTransition(activeL2Wrapper, () => {
-              if (!activeL2Wrapper.classList.contains('active')) {
-                activeL2Wrapper.style.display = 'none';
+        async function closeLevel1Submenus(keepMainMenuOpen = false) {
+          return new Promise(async resolve => {
+            await closeLevel2Submenus(true);
+            if (!submenuWrapperL1) { resolve(); return; } // Guard
+            const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
+            if (activeL1Wrapper) {
+              activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
+              activeL1Wrapper.classList.remove('active');
+              if (!keepMainMenuOpen) {
+                mainMenu.classList.remove('main-menu-submenu-active');
+                mainMenu.classList.remove('main-menu-l2-active');
               }
-
-              // Remove static highlights when L2 submenu is closed
-              if (window.MediaModule && window.MediaModule._getState) {
-                const state = window.MediaModule._getState();
-                if (state.dom.mediaLibrarySection) {
-                  state.dom.mediaLibrarySection.classList.remove('static-highlight');
-                }
-                if (state.dom.playlistSection) {
-                  state.dom.playlistSection.classList.remove('static-highlight');
-                }
+              afterTransition(activeL1Wrapper, () => {
+                if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
+                resolve();
+              });
+            } else {
+              if (!keepMainMenuOpen) {
+                mainMenu.classList.remove('main-menu-submenu-active');
+                mainMenu.classList.remove('main-menu-l2-active');
               }
               resolve();
-            });
-          } else {
-            resolve(); // Resolve if no L2 wrapper is active
-          }
-        }); // Corrected: Added missing parenthesis for Promise constructor
-      }
+            }
+          });
+        }
 
-
-      async function closeLevel1Submenus() {
-        return new Promise(async resolve => {
-          await closeLevel2Submenus();
-
-          const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
-          if (activeL1Wrapper) {
-            activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => {
-              submenu.classList.remove('active');
-            });
-
-            activeL1Wrapper.classList.remove('active');
-            mainMenu.classList.remove('main-menu-submenu-active');
-
-            afterTransition(activeL1Wrapper, () => {
-              if (!activeL1Wrapper.classList.contains('active')) {
-                activeL1Wrapper.style.display = 'none';
-              }
+        async function closeMainMenu() {
+          return new Promise(async resolve => {
+            await closeLevel1Submenus();
+            if (mainMenu.classList.contains('active')) {
+              mainMenu.classList.remove('active');
+              afterTransition(mainMenu, resolve);
+            } else {
               resolve();
-            });
-          } else {
-            mainMenu.classList.remove('main-menu-submenu-active');
-            resolve();
-          }
-        });
-      }
+            }
+          });
+        }
 
-      async function closeMainMenu() {
-        return new Promise(async resolve => {
-          await closeLevel1Submenus();
+        async function openL1Submenu(targetL1Submenu) {
+          return new Promise(async resolve => {
+            if (!targetL1Submenu || !submenuWrapperL1) { resolve(false); return; }
+            await closeLevel2Submenus(true);
+            const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
+            const targetCategoryItem = document.querySelector(`.category-item[data-action="${targetL1Submenu.id.replace('-submenu', '')}"]`);
 
-          if (mainMenu.classList.contains('active')) {
-            mainMenu.classList.remove('active');
-            afterTransition(mainMenu, resolve);
-          } else {
-            resolve();
-          }
-        });
-      }
-
-      async function openL1Submenu(targetL1Submenu) {
-        return new Promise(resolve => {
-          if (!targetL1Submenu) {
-            resolve(false);
-            return;
-          }
-
-          const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
-          const targetCategoryItem = document.querySelector(
-                  `.category-item[data-action="${targetL1Submenu.id.replace('-submenu', '')}"]`
-          );
-
-          if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
-            // Switch submenus
-            currentActiveL1Submenu.classList.remove('active');
-            mainMenu.classList.remove('main-menu-submenu-active');
-            categoryItems.forEach(ci => ci.classList.remove('selected'));
-            if (targetCategoryItem) targetCategoryItem.classList.add('selected');
-
-            afterTransition(submenuWrapperL1, () => { // This was likely meant to be currentActiveL1Submenu or submenuWrapperL1 based on context
+            const openLogic = () => {
               targetL1Submenu.classList.add('active');
               submenuWrapperL1.style.display = 'block';
               requestAnimationFrame(() => {
                 submenuWrapperL1.classList.add('active');
                 mainMenu.classList.add('main-menu-submenu-active');
+                mainMenu.classList.remove('main-menu-l2-active');
                 afterTransition(submenuWrapperL1, () => resolve(true));
               });
-            });
-          } else if (!currentActiveL1Submenu) {
-            // Open first submenu
-            targetL1Submenu.classList.add('active');
-            submenuWrapperL1.style.display = 'block';
+            };
+
             categoryItems.forEach(ci => ci.classList.remove('selected'));
             if (targetCategoryItem) targetCategoryItem.classList.add('selected');
 
-            requestAnimationFrame(() => {
-              submenuWrapperL1.classList.add('active');
-              mainMenu.classList.add('main-menu-submenu-active');
-              afterTransition(submenuWrapperL1, () => resolve(true));
-            });
-          } else if (currentActiveL1Submenu === targetL1Submenu) {
-            // Already open or trying to re-open the same
-            if (!submenuWrapperL1.classList.contains('active')) {
-              submenuWrapperL1.style.display = 'block';
-              requestAnimationFrame(() => {
-                submenuWrapperL1.classList.add('active');
+            if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
+              currentActiveL1Submenu.classList.remove('active');
+              afterTransition(currentActiveL1Submenu, openLogic);
+            } else if (!currentActiveL1Submenu) {
+              openLogic();
+            } else if (currentActiveL1Submenu === targetL1Submenu) { // Already open or re-opening
+              if (!submenuWrapperL1.classList.contains('active')) { // If wrapper was hidden
+                openLogic();
+              } else { // Already open and visible
                 mainMenu.classList.add('main-menu-submenu-active');
-                afterTransition(submenuWrapperL1, () => resolve(true));
-              });
-            } else {
-              mainMenu.classList.add('main-menu-submenu-active'); // Ensure this class is set
-              resolve(true);
+                mainMenu.classList.remove('main-menu-l2-active');
+                resolve(true);
+              }
             }
-          }
-        });
-      }
-
-      // Event handlers
-      menuTrigger.addEventListener('click', async () => {
-        if (mainMenu.classList.contains('active')) {
-          await closeMainMenu();
-        } else {
-          mainMenu.classList.add('active');
+          });
         }
-      });
 
-      if (menuClose) {
-        menuClose.addEventListener('click', closeMainMenu);
-      }
+        WallpaperApp.MenuTools.openL2Submenu = async function(submenuIdL2) {
+          const submenuL2 = document.getElementById(submenuIdL2);
+          if (!submenuL2 || !submenuWrapperL2) return;
 
-      categoryItems.forEach(item => {
-        item.addEventListener('click', async () => {
-          const action = item.getAttribute('data-action');
-          const isEffectsAction = action === 'effects';
-          const isTransitionsAction = action === 'transitions';
+          const currentActiveL2Wrapper = submenuWrapperL2; // Simplified, as there's only one L2 wrapper
+          const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
 
-          const targetL1SubmenuId = `${action}-submenu`;
-          const targetL1Submenu = document.getElementById(targetL1SubmenuId);
-          const mediaPlayerL1Submenu = document.getElementById('import-media-submenu');
-          const mediaPlayerCategoryItem = document.querySelector('.category-item[data-action="import-media"]');
-
-          // Deselect all other category items first
-          categoryItems.forEach(catItem => {
-            if (catItem !== item) {
-              catItem.classList.remove('selected');
-            }
-          });
-
-          // Toggle selection for the clicked item
-          item.classList.toggle('selected');
-
-          if (!item.classList.contains('selected')) {
-            // Item was deselected
-            if (isEffectsAction || isTransitionsAction) {
-              await closeLevel2Submenus();
-              if (mediaPlayerL1Submenu && mediaPlayerL1Submenu.classList.contains('active')) {
-                await closeLevel1Submenus();
-              }
-              if (mediaPlayerCategoryItem) {
-                mediaPlayerCategoryItem.classList.remove('selected');
-              }
-            } else if (targetL1Submenu && targetL1Submenu.classList.contains('active')) {
-              await closeLevel1Submenus();
-            }
-            return;
-          }
-
-          // Item is now selected
-          if (isEffectsAction || isTransitionsAction) {
-            if (mediaPlayerCategoryItem) {
-              mediaPlayerCategoryItem.classList.add('selected');
-            }
-
-            const l1Opened = await openL1Submenu(mediaPlayerL1Submenu);
-            if (l1Opened) {
-              setTimeout(() => {
-                const internalButtonId = isEffectsAction
-                        ? 'effects-quick-nav-button'
-                        : 'transitions-quick-nav-button';
-                const internalButton = document.getElementById(internalButtonId);
-
-                if (internalButton) {
-                  internalButton.click();
-                } else {
-                  WallpaperApp.MenuTools.openL2Submenu(
-                          isEffectsAction ? 'effects-list-submenu' : 'transitions-list-submenu'
-                  );
-
-                  if (window.MediaModule && window.MediaModule._getState) {
-                    const state = window.MediaModule._getState();
-                    if (isEffectsAction && state.dom.mediaLibrarySection) {
-                      state.dom.mediaLibrarySection.classList.add('static-highlight');
-                    } else if (isTransitionsAction && state.dom.playlistSection) {
-                      state.dom.playlistSection.classList.add('static-highlight');
-                    }
-                  }
-                }
-              }, 0);
-            }
-          } else {
-            // Standard L1 submenu handling
-            await closeLevel2Submenus();
-            if (targetL1Submenu) {
-              await openL1Submenu(targetL1Submenu);
-            } else {
-              await closeLevel1Submenus();
-              item.classList.remove('selected');
-            }
-          }
-        });
-      });
-
-      // L2 submenu management
-      WallpaperApp.MenuTools.openL2Submenu = async function(submenuIdL2) {
-        const submenuL2 = document.getElementById(submenuIdL2);
-        if (!submenuL2) return;
-
-        const currentActiveL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
-        const currentActiveL2Submenu = currentActiveL2Wrapper ? currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active') : null;
-
-
-        if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
-          // Switching L2 submenus
-          currentActiveL2Submenu.classList.remove('active');
-          currentActiveL2Submenu.querySelectorAll('.intensity-slider-container.visible').forEach(c => {
-            c.classList.remove('visible');
-            c.style.maxHeight = '0px';
-          });
-          currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => {
-            i.classList.remove('expanded');
-          });
-
-          afterTransition(currentActiveL2Submenu, () => {
-            if (currentActiveL2Wrapper && !currentActiveL2Wrapper.contains(currentActiveL2Submenu)) {
-              // If the old submenu is no longer in the active wrapper, do nothing.
-            }
+          const openTargetL2 = () => {
             submenuL2.classList.add('active');
-            mainMenu.classList.add('main-menu-l2-active');
-          });
-        } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
-          // Opening a new L2 submenu or re-opening the same L2 submenu
-          if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) { // if there was an active L2 and it's not the target, remove active
+            currentActiveL2Wrapper.style.display = 'block';
+            requestAnimationFrame(() => {
+              currentActiveL2Wrapper.classList.add('active');
+              mainMenu.classList.add('main-menu-l2-active');
+              mainMenu.classList.remove('main-menu-submenu-active'); // Ensure L1 class is off
+            });
+          };
+
+          if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
             currentActiveL2Submenu.classList.remove('active');
+            currentActiveL2Submenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {c.classList.remove('visible'); c.style.maxHeight = '0px';});
+            currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
+            afterTransition(currentActiveL2Submenu, openTargetL2);
+          } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
+            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) { // Should be caught by above, but defensive
+              currentActiveL2Submenu.classList.remove('active');
+            }
+            openTargetL2();
           }
+        };
 
-          submenuL2.classList.add('active');
-          submenuWrapperL2.style.display = 'block';
+        if(menuTrigger) menuTrigger.addEventListener('click', async () => { mainMenu.classList.contains('active') ? await closeMainMenu() : mainMenu.classList.add('active'); });
+        if (menuClose) menuClose.addEventListener('click', closeMainMenu);
 
-          void submenuWrapperL2.offsetHeight; // Force reflow
+        categoryItems.forEach(item => {
+          item.addEventListener('click', async () => {
+            const action = item.getAttribute('data-action');
+            const isEffectsAction = action === 'effects';
+            const isTransitionsAction = action === 'transitions';
 
-          requestAnimationFrame(() => {
-            submenuWrapperL2.classList.add('active');
-            mainMenu.classList.add('main-menu-l2-active');
-          });
-        }
-      };
+            const previouslySelected = item.classList.contains('selected');
 
-      // L2 items with expandable sliders
-      const l2Items = document.querySelectorAll('.submenu-item-l2');
-      l2Items.forEach(item => {
-        item.addEventListener('click', () => {
-          const parentMenu = item.closest('.slide-submenu-l2');
-          if (!parentMenu) return;
+            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
 
-          const effectId = item.getAttribute('data-effect-id');
-          const transitionId = item.getAttribute('data-transition-id');
-          const itemId = effectId || transitionId;
+            if (!previouslySelected) { // If it wasn't selected, now select it
+              item.classList.add('selected');
+            } // If it was selected, toggling means it's now deselected (class removed above)
 
-          let sliderContainer = item.nextElementSibling;
-          if (!sliderContainer || !sliderContainer.classList.contains('intensity-slider-container')) {
-            sliderContainer = document.createElement('div');
-            sliderContainer.className = 'intensity-slider-container';
-            item.parentNode.insertBefore(sliderContainer, item.nextSibling);
-          }
-
-          const isCurrentlyVisible = sliderContainer.classList.contains('visible');
-
-          parentMenu.querySelectorAll('.intensity-slider-container.visible').forEach(container => {
-            if (container !== sliderContainer) {
-              container.classList.remove('visible');
-              container.style.maxHeight = '0px';
-              const prevSibling = container.previousElementSibling;
-              if (prevSibling && prevSibling.classList.contains('submenu-item-l2')) {
-                prevSibling.classList.remove('expanded');
+            if (!item.classList.contains('selected')) { // Item was deselected or is not the one to process
+              if (isEffectsAction || isTransitionsAction) await closeLevel2Submenus();
+              else {
+                const targetL1 = document.getElementById(`${action}-submenu`);
+                if (targetL1 && targetL1.classList.contains('active')) await closeLevel1Submenus();
               }
+              return;
+            }
+
+            // Item is now selected
+            if (isEffectsAction) {
+              await closeLevel1Submenus(true);
+              WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
+            } else if (isTransitionsAction) {
+              await closeLevel1Submenus(true);
+              WallpaperApp.MenuTools.openL2Submenu('transitions-list-submenu');
+            } else {
+              await closeLevel2Submenus(true); // Close L2 if opening an L1
+              const targetL1Submenu = document.getElementById(`${action}-submenu`);
+              if (targetL1Submenu) await openL1Submenu(targetL1Submenu);
+              else await closeLevel1Submenus(true);
             }
           });
+        });
 
-          parentMenu.querySelectorAll('.submenu-item-l2.expanded').forEach(otherItem => {
-            if (otherItem !== item) {
-              otherItem.classList.remove('expanded');
-            }
+        submenuCloseButtonsL1.forEach(button => {
+          button.addEventListener('click', async () => {
+            await closeLevel1Submenus();
+            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
           });
-
-          if (isCurrentlyVisible) {
-            sliderContainer.classList.remove('visible');
-            sliderContainer.style.maxHeight = '0px';
-            item.classList.remove('expanded');
-          } else {
-            sliderContainer.innerHTML = `
-                <input type="range" class="intensity-slider" min="0" max="100" value="50" data-id="${itemId}">
-                <span class="intensity-value">50%</span>
-              `;
-
-            const sliderInput = sliderContainer.querySelector('.intensity-slider');
-            const valueSpan = sliderContainer.querySelector('.intensity-value');
-
-            if (sliderInput && valueSpan) {
-              sliderInput.addEventListener('input', (e) => {
-                const value = e.target.value;
-                valueSpan.textContent = `${value}%`;
-                console.log(`Applying ${itemId} intensity: ${value}%`);
-              });
-            }
-
-            sliderContainer.classList.add('visible');
-            sliderContainer.style.maxHeight = '50px'; // Make sure this is enough to show the content
-            item.classList.add('expanded');
-          }
         });
-      });
-
-      // Close button handlers
-      submenuCloseButtonsL1.forEach(button => {
-        button.addEventListener('click', async () => {
-          await closeLevel1Submenus();
-          categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-        });
-      });
-      submenuCloseButtonsL2.forEach(button => { // Corrected variable name
-        button.addEventListener('click', async () => {
-          await closeLevel2Submenus();
-          // Also deselect 'Effects' or 'Transitions' if their L2 menu is closed
-          document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-          document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-        });
-      });
-
-      // Global escape key handler
-      document.addEventListener('keydown', async (e) => {
-        if (e.key === 'Escape') {
-          const activeModal = document.querySelector('#modal-container .modal.show');
-          if (activeModal) {
-            WallpaperApp.UI.hideModal(activeModal.id);
-          } else if (submenuWrapperL2.classList.contains('active')) {
+        submenuCloseButtonsL2.forEach(button => {
+          button.addEventListener('click', async () => {
             await closeLevel2Submenus();
             document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
             document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
-          } else if (submenuWrapperL1.classList.contains('active')) {
-            await closeLevel1Submenus();
-            categoryItems.forEach(catItem => catItem.classList.remove('selected'));
-          } else if (mainMenu.classList.contains('active')) {
-            await closeMainMenu();
+          });
+        });
+
+        document.addEventListener('keydown', async (e) => {
+          if (e.key === 'Escape') {
+            const activeModal = document.querySelector('#modal-container .modal.show');
+            if (activeModal) WallpaperApp.UI.hideModal(activeModal.id);
+            else if (submenuWrapperL2 && submenuWrapperL2.classList.contains('active')) { // Check submenuWrapperL2 exists
+              await closeLevel2Submenus();
+              document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
+              document.querySelector('.category-item[data-action="transitions"].selected')?.classList.remove('selected');
+            } else if (submenuWrapperL1.classList.contains('active')) {
+              await closeLevel1Submenus();
+              categoryItems.forEach(catItem => catItem.classList.remove('selected'));
+            } else if (mainMenu.classList.contains('active')) {
+              await closeMainMenu();
+            }
           }
-        }
-      });
+        });
+      } catch (error) {
+        console.error("[setupMenuSystem] Error during setup:", error);
+        WallpaperApp.UI.showNotification("Error initializing menu system. Some UI may not work.", "error");
+      }
     } // End of setupMenuSystem
   }); // End of DOMContentLoaded
 </script>
