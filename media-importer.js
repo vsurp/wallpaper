@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.4.5 - Per-Clip Transitions Panel Logic (Syntax Double-Checked)
+ * Version 0.4.7 - Inter-Clip Transition Panel + Outro Button Removed
  */
 
 const MediaModule = (() => {
@@ -37,7 +37,7 @@ const MediaModule = (() => {
     mediaLibrary: [],
     playlist: {
       items: [],
-      transitions: {},
+      transitions: {}, // Key is the index of the item *before* which the transition runs (i.e., zone index)
       currentIndex: -1,
       isPlaying: false,
       shuffle: false,
@@ -60,7 +60,7 @@ const MediaModule = (() => {
       mainMenu: null,
       contextMenuContainer: null,
       inlinePanelContainer: null,
-      perClipTransitionsList: null,
+      transitionEditorList: null, // Renamed from perClipTransitionsList
     },
     selection: {
       active: false,
@@ -78,12 +78,12 @@ const MediaModule = (() => {
     activeVideoElement: null,
     contextualEditing: {
       active: false,
-      type: null,
-      targetId: null,
-      panelElement: null,
+      type: null, // 'effect', 'transition' (for inline panel), or 'zone-transition' (for new panel)
+      targetId: null, // mediaId for effects, zoneIndex for transitions
+      panelElement: null, // For inline panel
       contextMenuElement: null,
-      activeItem: null,
-      perClipTargetIndex: null
+      activeItem: null, // The selected effect/transition definition
+      activeTransitionEditorTargetIndex: null, // Stores the zone index for the transition editor panel
     }
   };
 
@@ -95,7 +95,8 @@ const MediaModule = (() => {
       state.dom.contextMenuContainer = document.getElementById('context-menu-container');
       state.dom.inlinePanelContainer = document.getElementById('inline-panel-container');
       state.dom.mediaContainer = document.getElementById('media-container');
-      state.dom.perClipTransitionsList = document.getElementById('per-clip-transitions-list');
+      // Get the renamed list element for the transition editor panel
+      state.dom.transitionEditorList = document.getElementById('transition-editor-list');
 
       initMediaImporter();
 
@@ -113,17 +114,18 @@ const MediaModule = (() => {
             !e.target.closest('.media-thumbnail')) {
           hideContextMenu();
         }
-        if (state.contextualEditing.panelElement &&
+        if (state.contextualEditing.panelElement && // Inline panel for effects
             state.contextualEditing.panelElement.style.display !== 'none' &&
             !state.contextualEditing.panelElement.contains(e.target) &&
             !e.target.closest('.media-thumbnail') &&
             !e.target.closest('.parameter-controls-container')) {
           hideInlinePanel();
         }
-        const perClipPanel = document.getElementById('per-clip-transitions-panel');
-        if (perClipPanel && perClipPanel.closest('.slide-left-panel-wrapper.active')) {
-          if (!perClipPanel.contains(e.target) && !e.target.closest('.playlist-item-set-transition-btn')) {
-            // Consider closing strategy here
+        // Check for clicks outside the new transition editor panel
+        const transitionEditorPanel = document.getElementById('transition-editor-panel');
+        if (transitionEditorPanel && transitionEditorPanel.closest('.transition-editor-panel-wrapper.active')) {
+          if (!transitionEditorPanel.contains(e.target) && !e.target.closest('.playlist-transition-zone')) {
+            // Consider closing strategy here - handled by MenuTools Escape key or explicit close button
           }
         }
       }, true);
@@ -324,28 +326,30 @@ const MediaModule = (() => {
       state.dom.playlistContainer.addEventListener('click', (e) => {
         const item = e.target.closest('.playlist-item');
         const transitionZone = e.target.closest('.playlist-transition-zone');
-        const setTransitionBtn = e.target.closest('.playlist-item-set-transition-btn');
 
-        if (setTransitionBtn) {
+        if (transitionZone) { // Handle click on inter-clip transition zone
           e.stopPropagation();
-          const playlistItemElement = setTransitionBtn.closest('.playlist-item');
-          const index = parseInt(playlistItemElement.dataset.index, 10);
-          const mediaId = playlistItemElement.dataset.id;
-          const media = state.mediaLibrary.find(m => m.id === mediaId);
-          if (media && typeof index === 'number') {
-            WallpaperApp.MenuTools.openPerClipTransitionsPanel(index, media.name);
+          const zoneIndex = parseInt(transitionZone.dataset.index, 10);
+          if (!isNaN(zoneIndex)) {
+            // Open the new generic transition editor panel
+            const title = `Transition for Zone ${zoneIndex + 1}`; // Or more descriptive
+            WallpaperApp.MenuTools.openTransitionEditorPanel(zoneIndex, title);
           }
-        } else if (transitionZone) {
-          e.stopPropagation(); const playlistIndex = parseInt(transitionZone.dataset.index, 10);
-          if (!isNaN(playlistIndex)) showInlinePanel(e, playlistIndex, 'transition', transitionZone);
-        } else if (item) {
+        } else if (item) { // Handle click on playlist item
           hideContextMenu(); hideInlinePanel();
           const mediaId = item.dataset.id; const index = parseInt(item.dataset.index, 10);
           const media = state.mediaLibrary.find(m => m.id === mediaId);
-          if (e.target.closest('.playlist-item-delete')) { e.stopPropagation(); removeFromPlaylist(index); }
-          else if (media) {
-            if (state.playlist.isPlaying && state.playlist.currentIndex === index) pausePlaylist();
-            else { state.playlist.currentIndex = index; playPlaylist(); updateActiveHighlight(media.id, 'playlist'); }
+          if (e.target.closest('.playlist-item-delete')) {
+            e.stopPropagation();
+            removeFromPlaylist(index);
+          } else if (media) {
+            if (state.playlist.isPlaying && state.playlist.currentIndex === index) {
+              pausePlaylist();
+            } else {
+              state.playlist.currentIndex = index;
+              playPlaylist();
+              updateActiveHighlight(media.id, 'playlist');
+            }
           }
         }
       });
@@ -354,20 +358,22 @@ const MediaModule = (() => {
 
   const showContextMenu = (event, targetId, type, anchorElement) => {
     hideContextMenu(); hideInlinePanel();
-    if (type !== 'transition_per_clip') WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+    // Close the generic transition editor if it's open, unless we are opening it for a transition
+    if (type !== 'zone-transition') WallpaperApp.MenuTools.closeTransitionEditorPanel();
+
 
     const menu = state.dom.contextMenuContainer; if (!menu) { console.error("Context menu container not found."); return; }
     menu.innerHTML = ''; menu.style.display = 'block';
     const importSubmenuRect = state.dom.importSubmenu.getBoundingClientRect();
     let x = event.clientX - importSubmenuRect.left; let y = event.clientY - importSubmenuRect.top;
-    const menuWidth = 180; const menuHeight = 50;
+    const menuWidth = 180; const menuHeight = type === 'effect' ? 50 : 100; // Adjust height if more options
     if (x + menuWidth > importSubmenuRect.width) x = importSubmenuRect.width - menuWidth - 5;
     if (y + menuHeight > importSubmenuRect.height) y = importSubmenuRect.height - menuHeight - 5;
     if (x < 0) x = 5; if (y < 0) y = 5;
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
     state.contextualEditing.contextMenuElement = menu;
-    state.contextualEditing.targetId = targetId;
+    state.contextualEditing.targetId = targetId; // mediaId for effect, zoneIndex for transition
     state.contextualEditing.type = type;
     state.contextualEditing.activeItem = null;
     if (type === 'effect') {
@@ -381,16 +387,18 @@ const MediaModule = (() => {
     state.contextualEditing.contextMenuElement = null;
   };
 
+  // showInlinePanel is primarily for Effects now
   const showInlinePanel = (event, targetId, type, anchorElement) => {
     hideInlinePanel(); hideContextMenu();
-    WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+    WallpaperApp.MenuTools.closeTransitionEditorPanel(); // Close transition editor if opening effect panel
 
     const panel = state.dom.inlinePanelContainer; if (!panel) { console.error("Inline panel container not found."); return; }
     panel.innerHTML = ''; panel.style.display = 'block';
     state.contextualEditing.panelElement = panel;
-    state.contextualEditing.targetId = targetId;
-    state.contextualEditing.type = type;
+    state.contextualEditing.targetId = targetId; // mediaId for effect
+    state.contextualEditing.type = type; // Should be 'effect'
     state.contextualEditing.activeItem = null;
+
     if (anchorElement && state.dom.importSubmenu) {
       const anchorRect = anchorElement.getBoundingClientRect(); const submenuRect = state.dom.importSubmenu.getBoundingClientRect();
       let panelTop = anchorRect.bottom - submenuRect.top + 5; let panelLeft = anchorRect.left - submenuRect.left;
@@ -401,23 +409,26 @@ const MediaModule = (() => {
       panel.style.top = panelTop + 'px';
       panel.style.left = panelLeft + 'px';
     } else { panel.style.top = '50px'; panel.style.left = '50px'; }
-    const mediaItemForTitle = type === 'effect' ? state.mediaLibrary.find(m=>m.id === targetId) : null;
-    const titleText = type === 'effect' ? `Effects for ${mediaItemForTitle?.name || 'Item'}` : `Transition before item ${targetId + 1}`;
+
+    const mediaItemForTitle = state.mediaLibrary.find(m=>m.id === targetId);
+    const titleText = `Effects for ${mediaItemForTitle?.name || 'Item'}`;
     const panelTitle = createUIElement('div', { textContent: titleText, className: 'inline-panel-title' });
     panel.appendChild(panelTitle);
+
     const itemsContainer = createUIElement('div', { className: 'inline-panel-items' });
-    const itemsToList = type === 'effect' ? CONSTANTS.AVAILABLE_EFFECTS : CONSTANTS.AVAILABLE_TRANSITIONS;
-    itemsToList.forEach(item => {
+    CONSTANTS.AVAILABLE_EFFECTS.forEach(item => {
       const itemButton = createUIElement('button', { textContent: item.name, className: 'inline-panel-item-button', events: { click: (e) => { itemsContainer.querySelectorAll('.inline-panel-item-button.selected').forEach(btn => btn.classList.remove('selected')); e.currentTarget.classList.add('selected'); state.contextualEditing.activeItem = item; populateInlinePanelControls(item, type, targetId); }}});
       itemsContainer.appendChild(itemButton);
     });
     panel.appendChild(itemsContainer);
+
     const controlsContainer = createUIElement('div', { id: 'inline-panel-controls', className: 'inline-panel-controls-container'});
     panel.appendChild(controlsContainer);
+
     const applyButton = createUIElement('button', { textContent: 'Apply', className: 'btn btn-primary btn-small inline-panel-button-apply' });
     applyButton.addEventListener('click', () => {
       if (type === 'effect') applyEffect(targetId);
-      else if (type === 'transition') applyTransitionFromInlinePanel(targetId);
+      // Removed transition application from here
     });
     const closeButton = createUIElement('button', { textContent: 'Close', className: 'btn btn-secondary btn-small' });
     closeButton.addEventListener('click', hideInlinePanel);
@@ -425,17 +436,16 @@ const MediaModule = (() => {
     footer.appendChild(applyButton); footer.appendChild(closeButton); panel.appendChild(footer);
   };
 
-  const populateInlinePanelControls = (selectedItem, type, targetId) => {
+  const populateInlinePanelControls = (selectedItem, type, targetId) => { // Primarily for effects
     const controlsContainer = document.getElementById('inline-panel-controls'); if (!controlsContainer) return;
     controlsContainer.innerHTML = '';
     let existingSettingsBundle = null;
     if (type === 'effect') {
       const mediaItem = state.mediaLibrary.find(m => m.id === targetId);
       if (mediaItem && mediaItem.settings && mediaItem.settings.effects) existingSettingsBundle = mediaItem.settings.effects.find(eff => eff.effectId === selectedItem.id);
-    } else if (type === 'transition') {
-      const transitionAtTarget = state.playlist.transitions[targetId];
-      if (transitionAtTarget && transitionAtTarget.transitionId === selectedItem.id) existingSettingsBundle = transitionAtTarget;
     }
+    // Removed transition logic from here
+
     selectedItem.params.forEach(param => {
       const paramGroup = createUIElement('div', { className: 'form-group inline-param-group' });
       const label = createUIElement('label', { textContent: param.name, attributes: {'for': `param-${param.id}`} });
@@ -468,7 +478,7 @@ const MediaModule = (() => {
     const activeEffectItem = effectIdToApply ? CONSTANTS.AVAILABLE_EFFECTS.find(e => e.id === effectIdToApply) : state.contextualEditing.activeItem;
     const effectParams = paramsToApply || {};
 
-    if (!effectIdToApply && !paramsToApply) {
+    if (!effectIdToApply && !paramsToApply) { // From inline panel
       const panel = state.contextualEditing.panelElement;
       if (!panel || !activeEffectItem) {
         showNotification("No active effect selected or panel not found.", "error");
@@ -498,58 +508,35 @@ const MediaModule = (() => {
     }
   };
 
-  const applyTransitionFromInlinePanel = (playlistIndex) => {
-    const activeTransitionItem = state.contextualEditing.activeItem;
-    const transitionParams = {};
-    const panel = state.contextualEditing.panelElement;
-
-    if (!panel || !activeTransitionItem) {
-      showNotification("No active transition selected or panel not found.", "error");
-      return;
-    }
-    panel.querySelectorAll('#inline-panel-controls [data-param-id]').forEach(inputEl => {
-      transitionParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
-    });
-
-    state.playlist.transitions[playlistIndex] = { transitionId: activeTransitionItem.id, params: transitionParams };
-    showNotification("Transition " + activeTransitionItem.name + " applied before item " + (playlistIndex + 1) + ".", 'success');
-    saveMediaList(); updatePlaylistUI();
-    hideInlinePanel();
-  };
-
-  const applyOutroTransition = (playlistItemIndex, transitionId) => {
+  // This function is now for the new generic transition editor panel
+  const applyTransitionToZone = (zoneIndex, transitionId) => {
     const transitionDefinition = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionId);
     if (!transitionDefinition) {
       showNotification("Transition definition for ID \"" + transitionId + "\" not found.", "error");
       return;
     }
 
+    // For simplicity, applying default parameters.
+    // A more complex implementation would fetch parameters from the new panel's controls.
     const defaultParams = {};
     transitionDefinition.params.forEach(param => {
       defaultParams[param.id] = param.value;
     });
 
-    state.playlist.transitions[playlistItemIndex] = {
+    state.playlist.transitions[zoneIndex] = {
       transitionId: transitionId,
-      params: defaultParams
+      params: defaultParams // TODO: Fetch params from the new panel if it has controls
     };
 
-    const mediaItem = state.mediaLibrary.find(m => m.id === state.playlist.items[playlistItemIndex]);
-
-    const transitionName = transitionDefinition.name;
-    let targetName;
-    if (mediaItem) {
-      targetName = mediaItem.name;
-    } else {
-      targetName = "item " + (playlistItemIndex + 1);
-    }
-    const notificationMessage = "Transition '" + transitionName + "' set for '" + targetName + "'.";
+    const targetName = "zone before item " + (zoneIndex + 1);
+    const notificationMessage = "Transition '" + transitionDefinition.name + "' set for " + targetName + ".";
     showNotification(notificationMessage, 'success');
 
     saveMediaList();
     updatePlaylistUI();
-    WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+    WallpaperApp.MenuTools.closeTransitionEditorPanel(); // Close the panel after applying
   };
+
 
   const handleFileSelect = async (files) => {
     console.log("[MediaModule] handleFileSelect: Received " + (files?.length || 0) + " file(s).");
@@ -914,14 +901,17 @@ const MediaModule = (() => {
     const newTransitions = {};
     for (const key in state.playlist.transitions) {
       const oldKey = parseInt(key);
-      if (oldKey === index) continue;
-      if (oldKey > index) {
+      if (oldKey === index) continue; // Transition *before* item 'index' is removed with the item
+      if (oldKey === index + 1) continue; // Transition *after* item 'index' (which is before next item) is also removed
+
+      if (oldKey > index + 1) { // Shift transitions for items that were after the removed one
         newTransitions[oldKey - 1] = state.playlist.transitions[key];
-      } else {
+      } else if (oldKey < index) { // Keep transitions for items before the removed one
         newTransitions[oldKey] = state.playlist.transitions[key];
       }
     }
     state.playlist.transitions = newTransitions;
+
 
     if (state.playlist.isPlaying) {
       if (index === state.playlist.currentIndex) { if (state.playlist.items.length > 0) { state.playlist.currentIndex = Math.min(index, state.playlist.items.length - 1); playMediaByIndex(state.playlist.currentIndex); } else stopPlaylist(); }
@@ -943,12 +933,26 @@ const MediaModule = (() => {
     const itemToMove = state.playlist.items.splice(fromIndex, 1)[0];
     state.playlist.items.splice(toIndex, 0, itemToMove);
 
+    // Basic transition re-mapping:
+    // This is a simplified approach. Transitions are associated with the *zone index*.
+    // When items move, the zones effectively move with them.
     const oldTransitions = JSON.parse(JSON.stringify(state.playlist.transitions));
     const newTransitions = {};
 
-    // Simplified transition handling: This part remains complex and may not perfectly preserve all transition associations on reorder.
-    // A more robust solution would involve a clearer mapping of transitions to specific items (e.g., by item ID).
-    // For now, the focus is on item reordering; transition reordering might need further refinement.
+    // Iterate through the new item order and try to map old transitions
+    for (let i = 0; i <= state.playlist.items.length; i++) { // Iterate through all possible zone indices
+      // This logic needs to be more robust to correctly map transitions
+      // For now, we'll clear and let users re-add. A more sophisticated mapping is complex.
+    }
+    // For simplicity in this step, we might clear transitions or require users to re-add them after reordering.
+    // A robust solution would track transitions by item IDs or more complex logic.
+    // Let's assume for now that reordering might require re-setting transitions around the moved item.
+    // A simple approach: remove transitions around the moved item's old and new positions.
+    delete state.playlist.transitions[fromIndex];
+    delete state.playlist.transitions[fromIndex + 1];
+    delete state.playlist.transitions[toIndex];
+    delete state.playlist.transitions[toIndex + 1];
+
 
     if (state.playlist.currentIndex === fromIndex) state.playlist.currentIndex = toIndex;
     else if (state.playlist.currentIndex > fromIndex && state.playlist.currentIndex <= toIndex) state.playlist.currentIndex--;
@@ -1096,18 +1100,21 @@ const MediaModule = (() => {
       return;
     }
 
+    // Transition logic: transitionData is for the transition *before* the current item (index)
     const transitionData = state.playlist.transitions[index];
 
     if (oldElement && transitionData && CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionData.transitionId)) {
       console.log("[MediaModule] Applying transition: " + transitionData.transitionId + " before item " + index);
-      newElement.style.opacity = '0';
+      newElement.style.opacity = '0'; // Start new element invisible
       state.dom.mediaContainer.appendChild(newElement);
 
       const duration = transitionData.params.duration || 500;
+      // Animate old element out
       oldElement.style.transition = "opacity " + (duration / 2) + "ms ease-out";
+      // Animate new element in after a delay
       newElement.style.transition = "opacity " + (duration / 2) + "ms ease-in " + (duration / 2) + "ms";
 
-      requestAnimationFrame(() => {
+      requestAnimationFrame(() => { // Ensure styles are applied before transition starts
         oldElement.style.opacity = '0';
         newElement.style.opacity = '1';
       });
@@ -1117,7 +1124,7 @@ const MediaModule = (() => {
         if (newElement.tagName.toLowerCase() === 'video' && newElement.paused) {
           newElement.play().catch(e => console.warn("Autoplay prevented during transition:", e));
         }
-      }, duration);
+      }, duration); // Total duration of the transition
       state.playlist.lastTransitionTime = Date.now();
     } else {
       clearMediaDisplay();
@@ -1166,7 +1173,7 @@ const MediaModule = (() => {
     state.playlist.currentIndex = nextIndex;
     playMediaByIndex(nextIndex);
 
-    setTimeout(() => { state.playlist.advancingInProgress = false; }, 200);
+    setTimeout(() => { state.playlist.advancingInProgress = false; }, 200); // Debounce
   };
 
 
@@ -1197,9 +1204,15 @@ const MediaModule = (() => {
         if (state.playlist.isPlaying && i === oldCurrentIndex) {
           wasPlayingDeletedItem = true;
         }
+        // When an item is deleted, the transition *before* it (at its original index i)
+        // and the transition *after* it (at index i+1, which becomes the new transition before the next item)
+        // might need to be reconsidered or removed. For simplicity, we remove the transition at index `i`.
+        // The transition at `i+1` will naturally shift if the next item exists.
+        delete state.playlist.transitions[i];
       } else {
         const newItemNewIndex = newPlaylistItems.length;
         newPlaylistItems.push(currentItemId);
+        // Shift transitions
         if (state.playlist.transitions[i]) {
           newTransitions[newItemNewIndex] = state.playlist.transitions[i];
         }
@@ -1208,9 +1221,17 @@ const MediaModule = (() => {
         }
       }
     }
+    // Clean up any transitions that might now point to an index greater than the new playlist length
+    const finalTransitions = {};
+    for(const key in newTransitions){
+      if(parseInt(key) <= newPlaylistItems.length){
+        finalTransitions[key] = newTransitions[key];
+      }
+    }
 
     state.playlist.items = newPlaylistItems;
-    state.playlist.transitions = newTransitions;
+    state.playlist.transitions = finalTransitions;
+
 
     if (wasPlayingDeletedItem) {
       if (state.playlist.items.length > 0) {
@@ -1226,17 +1247,19 @@ const MediaModule = (() => {
         state.playlist.currentIndex = -1;
         stopPlaylist();
       } else if (state.playlist.currentIndex === -1 && oldCurrentIndex >= state.playlist.items.length) {
-        state.playlist.currentIndex = state.playlist.items.length -1;
+        // This case needs careful handling if oldCurrentIndex was valid but now points beyond new length
+        state.playlist.currentIndex = Math.max(0, state.playlist.items.length -1);
       }
     }
 
     const currentMediaEl = state.dom.mediaContainer.querySelector("video[data-media-id=\"" + id + "\"], img[src=\"" + mediaToDelete.url + "\"]");
-    if (currentMediaEl && !wasPlayingDeletedItem) {
+    if (currentMediaEl && !wasPlayingDeletedItem) { // If the deleted item was displayed but not as part of active playlist playback
       clearMediaDisplay();
       updateActiveHighlight(null);
     }
 
-    if (state.mediaLibrary.length === 0) clearPlaylistLogic();
+
+    if (state.mediaLibrary.length === 0) clearPlaylistLogic(); // If library empty, clear playlist too
     else updatePlaylistUI();
 
     updateMediaGallery();
@@ -1245,18 +1268,27 @@ const MediaModule = (() => {
     clearSelection();
   };
 
-  const createTransitionZone = (index) => {
-    const zone = createUIElement('div', { className: 'playlist-transition-zone professional-style', attributes: { 'data-index': index.toString(), title: 'Click to add or edit transition' }});
-    const transitionData = state.playlist.transitions[index];
+  const createTransitionZone = (zoneIndex) => { // zoneIndex is the index of the item it PRECEDES
+    const zone = createUIElement('div', {
+      className: 'playlist-transition-zone professional-style',
+      attributes: { 'data-index': zoneIndex.toString(), title: 'Click to add or edit transition before item ' + (zoneIndex + 1) }
+    });
+    const transitionData = state.playlist.transitions[zoneIndex];
     if (transitionData) {
       const transInfo = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === transitionData.transitionId);
-      const transDisplay = createUIElement('div', { className: 'transition-display active professional-display', innerHTML: "<span class=\"transition-icon-active\">" + (transInfo?.name.substring(0,1).toUpperCase() || 'T') + "</span><span class=\"transition-name-active\">" + (transInfo?.name || 'Transition') + "</span><span class=\"transition-duration-active\">" + (transitionData.params.duration || 'N/A') + "ms</span>"});
+      const transDisplay = createUIElement('div', {
+        className: 'transition-display active professional-display',
+        innerHTML: `<span class="transition-icon-active">${transInfo?.name.substring(0,1).toUpperCase() || 'T'}</span><span class="transition-name-active">${transInfo?.name || 'Transition'}</span><span class="transition-duration-active">${transitionData.params.duration || 'N/A'}ms</span>`
+      });
       zone.appendChild(transDisplay);
     } else {
-      const addBtn = createUIElement('div', { className: 'transition-add-placeholder professional-add', innerHTML: "<svg class=\"transition-add-icon-svg\" viewBox=\"0 0 20 20\" width=\"18\" height=\"18\" fill=\"currentColor\" style=\"display: block; margin: auto; opacity: 0.7;\"><rect x=\"1\" y=\"5\" width=\"11\" height=\"7\" rx=\"1\" ry=\"1\" fill-opacity=\"0.6\"/><rect x=\"7\" y=\"8\" width=\"11\" height=\"7\" rx=\"1\" ry=\"1\" fill-opacity=\"0.6\"/><rect x=\"8\" y=\"6.5\" width=\"2\" height=\"6\" fill=\"rgba(255,255,255,0.9)\"/><rect x=\"6\" y=\"8.5\" width=\"6\" height=\"2\" fill=\"rgba(255,255,255,0.9)\"/></svg>"});
+      const addBtn = createUIElement('div', {
+        className: 'transition-add-placeholder professional-add',
+        innerHTML: `<svg class="transition-add-icon-svg" viewBox="0 0 20 20" width="18" height="18" fill="currentColor" style="display: block; margin: auto; opacity: 0.7;"><rect x="1" y="5" width="11" height="7" rx="1" ry="1" fill-opacity="0.6"/><rect x="7" y="8" width="11" height="7" rx="1" ry="1" fill-opacity="0.6"/><rect x="8" y="6.5" width="2" height="6" fill="rgba(255,255,255,0.9)"/><rect x="6" y="8.5" width="6" height="2" fill="rgba(255,255,255,0.9)"/></svg>`
+      });
       zone.appendChild(addBtn);
     }
-    zone.addEventListener('click', (e) => { e.stopPropagation(); showInlinePanel(e, index, 'transition', zone); });
+    // Event listener is handled by delegation in setupGlobalEventDelegation
     return zone;
   };
 
@@ -1271,16 +1303,20 @@ const MediaModule = (() => {
     } else {
       emptySt.style.display = 'none';
       controlsCont.style.visibility = 'visible';
+      // Transition zone before the first item (index 0)
       fragment.appendChild(createTransitionZone(0));
 
       state.playlist.items.forEach((mediaId, index) => {
         const media = state.mediaLibrary.find(m => m.id === mediaId);
         if (media) fragment.appendChild(createPlaylistItem(media, index));
-        if (index < state.playlist.items.length) {
+        // Transition zone after each item (which is before the next item at index + 1)
+        // The last zone is after the last item, so its index is playlist.items.length
+        if (index < state.playlist.items.length) { // This ensures a zone after every item, including the last one
           fragment.appendChild(createTransitionZone(index + 1));
         }
       });
     }
+    // Clear previous items and zones
     Array.from(playlistCont.querySelectorAll('.playlist-item, .playlist-transition-zone')).forEach(child => child.remove());
     playlistCont.appendChild(fragment);
 
@@ -1305,13 +1341,9 @@ const MediaModule = (() => {
     infoCont.appendChild(nameEl); infoCont.appendChild(detailsEl); item.appendChild(infoCont);
 
     const controlsWrap = createUIElement('div', {className: 'playlist-item-controls-wrap'});
-
-    const setTransitionButton = createUIElement('button', {
-      className: 'btn btn-icon playlist-item-set-transition-btn',
-      innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h2v12H4zm4 0V6h8v12H8zm10 0V6h2v12h-2z"></path></svg>',
-      attributes: { 'aria-label': "Set transition after " + media.name, title: 'Set Outro Transition' }
-    });
-    controlsWrap.appendChild(setTransitionButton);
+    // REMOVED: "Set Outro Transition" button
+    // const setTransitionButton = createUIElement('button', { ... });
+    // controlsWrap.appendChild(setTransitionButton);
 
     const deleteBtn = createUIElement('button', { className: 'btn btn-icon btn-danger playlist-item-delete', innerHTML: '<svg viewBox="0 0 24 24" width="0.8em" height="0.8em" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>', attributes: { 'aria-label': "Remove " + media.name + " from playlist" } });
     controlsWrap.appendChild(deleteBtn);
@@ -1322,15 +1354,8 @@ const MediaModule = (() => {
       const playingInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
       thumbDiv.appendChild(playingInd);
     }
-
-    const outroTransitionData = state.playlist.transitions[index];
-    if (outroTransitionData) {
-      const transInfo = CONSTANTS.AVAILABLE_TRANSITIONS.find(t => t.id === outroTransitionData.transitionId);
-      setTransitionButton.innerHTML = "<span style=\"font-size: 0.7em; color: var(--primary-color);\">" + (transInfo ? transInfo.name.substring(0,1).toUpperCase() : 'T') + "</span>";
-      setTransitionButton.title = "Transition After: " + (transInfo ? transInfo.name : 'Custom');
-      setTransitionButton.classList.add('has-transition');
-    }
-
+    // Removed specific styling for outro transition on the item itself, as that button is gone.
+    // The inter-clip transition is now represented by the zone.
     return item;
   };
 
@@ -1346,9 +1371,9 @@ const MediaModule = (() => {
         playlistElements.forEach((el) => {
           if (el.dataset.id === mediaId && parseInt(el.dataset.index) === state.playlist.currentIndex) {
             elementToHighlight = el;
-            el.classList.add('current');
+            el.classList.add('current'); // General current item styling
             const thumbDiv = el.querySelector('.playlist-item-thumbnail');
-            if (state.playlist.isPlaying && thumbDiv) {
+            if (state.playlist.isPlaying && thumbDiv) { // If playing, add play indicator
               const exInd = thumbDiv.querySelector('.playlist-item-playing-indicator');
               if (!exInd) {
                 const newInd = createUIElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span style="filter: grayscale(100%); font-size: 0.8em;">▶</span>' });
@@ -1363,7 +1388,7 @@ const MediaModule = (() => {
         });
       }
     }
-    if (elementToHighlight) elementToHighlight.classList.add('playing-from-here');
+    if (elementToHighlight) elementToHighlight.classList.add('playing-from-here'); // Snake border highlight
   };
 
   const removeAllActiveHighlights = () => {
@@ -1387,6 +1412,7 @@ const MediaModule = (() => {
   const getAvailableEffects = () => CONSTANTS.AVAILABLE_EFFECTS;
   const getAvailableTransitions = () => CONSTANTS.AVAILABLE_TRANSITIONS;
 
+  // getParamsFor L2 submenus (effects)
   const getParamsFor = (itemId, itemType, controlsContainerElement, targetApplyId, targetApplyType) => {
     if (!controlsContainerElement) {
       console.error("[MediaModule.getParamsFor] Controls container element is missing.");
@@ -1407,7 +1433,15 @@ const MediaModule = (() => {
       const label = createUIElement('label', { textContent: param.name, attributes: {'for': "l2-param-" + param.id} });
       paramGroup.appendChild(label);
       let input;
-      const currentValue = param.value;
+      // Get current value if exists, else default
+      let currentValue = param.value;
+      if (itemType === 'effect' && targetApplyId) {
+        const mediaItem = state.mediaLibrary.find(m => m.id === targetApplyId);
+        const existingEffect = mediaItem?.settings?.effects?.find(eff => eff.effectId === itemId);
+        if (existingEffect && existingEffect.params[param.id] !== undefined) {
+          currentValue = existingEffect.params[param.id];
+        }
+      } // Add similar logic for transitions if parameters are editable in L2 for them
 
       if (param.type === 'slider') {
         input = createUIElement('input', { type: 'range', className:'parameter-slider', id: "l2-param-" + param.id, min: param.min, max: param.max, value: currentValue, attributes: { 'data-param-id': param.id }});
@@ -1440,12 +1474,14 @@ const MediaModule = (() => {
         collectedParams[inputEl.dataset.paramId] = inputEl.type === 'range' ? parseFloat(inputEl.value) : inputEl.value;
       });
 
-      if (itemType === 'effect' && targetApplyType === 'effect') {
+      if (itemType === 'effect' && targetApplyType === 'effect') { // Applying effect from L2
         applyEffect(targetApplyId, itemId, collectedParams);
-      } else if (itemType === 'transition' && targetApplyType === 'transition') {
-        state.playlist.transitions[targetApplyId] = { transitionId: itemId, params: collectedParams };
-        showNotification("Transition " + itemDefinition.name + " applied before item " + (targetApplyId + 1) + " (via L2).", 'success');
-        saveMediaList(); updatePlaylistUI();
+      } else if (itemType === 'transition' && targetApplyType === 'transition') { // Applying transition from L2 (if ever implemented)
+        // This case is currently handled by the new transition editor panel, not L2.
+        // state.playlist.transitions[targetApplyId] = { transitionId: itemId, params: collectedParams };
+        // showNotification("Transition " + itemDefinition.name + " applied before item " + (targetApplyId + 1) + " (via L2).", 'success');
+        // saveMediaList(); updatePlaylistUI();
+        showNotification("Transition application from L2 not standard; use playlist zone editor.", 'warning');
       } else {
         showNotification("Cannot apply " + itemType + ": Mismatched target type or invalid target.", 'error');
       }
@@ -1453,63 +1489,55 @@ const MediaModule = (() => {
     controlsContainerElement.appendChild(applyBtn);
   };
 
-  const populatePerClipTransitions = (playlistItemIndex) => {
-    if (!state.dom.perClipTransitionsList) {
-      console.error("[MediaModule.populatePerClipTransitions] Panel list element not found.");
+  // Renamed and adapted from populatePerClipTransitions
+  const populateTransitionEditor = (zoneIndex) => {
+    if (!state.dom.transitionEditorList) {
+      console.error("[MediaModule.populateTransitionEditor] Panel list element not found.");
       return;
     }
-    state.dom.perClipTransitionsList.innerHTML = '';
-    state.contextualEditing.perClipTargetIndex = playlistItemIndex;
+    state.dom.transitionEditorList.innerHTML = '';
+    state.contextualEditing.activeTransitionEditorTargetIndex = zoneIndex; // Store the target zone index
 
-    const currentTransitionData = state.playlist.transitions[playlistItemIndex];
+    const currentTransitionData = state.playlist.transitions[zoneIndex];
 
     CONSTANTS.AVAILABLE_TRANSITIONS.forEach(transitionDef => {
       const button = createUIElement('button', {
-        className: 'submenu-item',
+        className: 'submenu-item', // Standard menu item style
         textContent: transitionDef.name,
         attributes: { 'data-transition-id': transitionDef.id }
       });
 
       if (currentTransitionData && currentTransitionData.transitionId === transitionDef.id) {
-        button.classList.add('selected');
+        button.classList.add('selected'); // Highlight if it's the current one
       }
 
       button.addEventListener('click', () => {
-        applyOutroTransition(state.contextualEditing.perClipTargetIndex, transitionDef.id);
+        // Apply the selected transition to the stored zoneIndex
+        applyTransitionToZone(state.contextualEditing.activeTransitionEditorTargetIndex, transitionDef.id);
       });
-      state.dom.perClipTransitionsList.appendChild(button);
+      state.dom.transitionEditorList.appendChild(button);
     });
 
+    // Add a "Remove Transition" button
+    state.dom.transitionEditorList.appendChild(createDivider());
     const removeButton = createUIElement('button', {
-      className: 'submenu-item btn-danger',
+      className: 'submenu-item btn-danger', // Danger style for removal
       textContent: 'Remove Transition'
     });
     if (!currentTransitionData) {
-      removeButton.classList.add('disabled');
+      removeButton.classList.add('disabled'); // Disable if no transition is set
     }
     removeButton.addEventListener('click', () => {
-      if (currentTransitionData) {
-        delete state.playlist.transitions[state.contextualEditing.perClipTargetIndex];
-        const mediaItem = state.mediaLibrary.find(m => m.id === state.playlist.items[state.contextualEditing.perClipTargetIndex]);
-
-        let targetName;
-        if (mediaItem) {
-          targetName = mediaItem.name;
-        } else if (state.playlist.items && state.playlist.items[state.contextualEditing.perClipTargetIndex]) {
-          targetName = "item " + (state.contextualEditing.perClipTargetIndex + 1);
-        } else {
-          targetName = "item at index " + (state.contextualEditing.perClipTargetIndex + 1);
-        }
-        const notificationMessage = "Transition removed for '" + targetName + "'.";
-        showNotification(notificationMessage, 'info');
-
+      if (currentTransitionData) { // Only if a transition exists for this zone
+        delete state.playlist.transitions[state.contextualEditing.activeTransitionEditorTargetIndex];
+        const targetName = "zone before item " + (state.contextualEditing.activeTransitionEditorTargetIndex + 1);
+        showNotification("Transition removed for " + targetName + ".", 'info');
         saveMediaList();
         updatePlaylistUI();
       }
-      WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+      WallpaperApp.MenuTools.closeTransitionEditorPanel(); // Close panel after action
     });
-    state.dom.perClipTransitionsList.appendChild(createDivider());
-    state.dom.perClipTransitionsList.appendChild(removeButton);
+    state.dom.transitionEditorList.appendChild(removeButton);
   };
 
 
@@ -1519,8 +1547,9 @@ const MediaModule = (() => {
     hideInlinePanel: hideInlinePanel,
     getAvailableEffects: getAvailableEffects,
     getAvailableTransitions: getAvailableTransitions,
-    getParamsFor: getParamsFor,
-    populatePerClipTransitions: populatePerClipTransitions,
+    getParamsFor: getParamsFor, // For L2 effects menu
+    populateTransitionEditor: populateTransitionEditor, // For the new transition zone editor panel
+    // applyTransitionToZone is internal, called by populateTransitionEditor's buttons
   };
 })();
 
