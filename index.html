@@ -11,7 +11,7 @@
       config: {
         version: '0.1.9',
         animationDuration: 300,
-        tooltipDelay: 1000,
+        tooltipDelay: 500, // Reduced from 1000ms for better UX
         notificationDuration: 3000
       },
 
@@ -312,19 +312,21 @@
         }
       },
 
-      // Tooltip System - NEW IMPLEMENTATION
+      // Tooltip System - FIXED IMPLEMENTATION
       Tooltip: {
         currentTooltip: null,
         showTimeout: null,
+        hideTimeout: null,
 
         init() {
-          this.setupEventListeners();
           this.createTooltipContainer();
+          this.setupEventListeners();
         },
 
         createTooltipContainer() {
-          if (!document.getElementById('tooltip-container')) {
-            const container = document.createElement('div');
+          let container = document.getElementById('tooltip-container');
+          if (!container) {
+            container = document.createElement('div');
             container.id = 'tooltip-container';
             container.className = 'tooltip-container';
             document.body.appendChild(container);
@@ -332,59 +334,104 @@
         },
 
         setupEventListeners() {
-          document.addEventListener('mouseover', (e) => {
-            const element = e.target.closest('[data-tooltip]');
-            if (element) {
-              this.show(element, element.dataset.tooltip);
+          // Use event delegation for better performance
+          document.addEventListener('mouseenter', (e) => {
+            const tooltipElement = e.target.closest('[data-tooltip]');
+            if (tooltipElement) {
+              this.scheduleShow(tooltipElement);
             }
-          });
+          }, true);
 
-          document.addEventListener('mouseout', (e) => {
-            const element = e.target.closest('[data-tooltip]');
-            if (element) {
-              this.hide();
+          document.addEventListener('mouseleave', (e) => {
+            const tooltipElement = e.target.closest('[data-tooltip]');
+            if (tooltipElement && tooltipElement === this.currentElement) {
+              this.scheduleHide();
             }
-          });
+          }, true);
+
+          // Hide tooltip on scroll
+          document.addEventListener('scroll', () => this.hide(), true);
+
+          // Hide tooltip on window resize
+          window.addEventListener('resize', () => this.hide());
         },
 
-        show(element, text) {
+        scheduleShow(element) {
+          this.cancelScheduledHide();
+          this.cancelScheduledShow();
+
+          this.currentElement = element;
+          this.showTimeout = setTimeout(() => {
+            this.show(element);
+          }, WallpaperApp.config.tooltipDelay);
+        },
+
+        scheduleHide() {
+          this.cancelScheduledShow();
+          this.hideTimeout = setTimeout(() => {
+            this.hide();
+          }, 100);
+        },
+
+        cancelScheduledShow() {
+          if (this.showTimeout) {
+            clearTimeout(this.showTimeout);
+            this.showTimeout = null;
+          }
+        },
+
+        cancelScheduledHide() {
+          if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+          }
+        },
+
+        show(element) {
+          const text = element.getAttribute('data-tooltip');
+          if (!text) return;
+
           this.hide(); // Hide any existing tooltip
 
-          this.showTimeout = setTimeout(() => {
-            const container = document.getElementById('tooltip-container');
-            if (!container || !text) return;
+          const container = document.getElementById('tooltip-container');
+          if (!container) return;
 
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            tooltip.textContent = text;
+          const tooltip = document.createElement('div');
+          tooltip.className = 'tooltip';
+          tooltip.textContent = text;
 
-            container.appendChild(tooltip);
-            this.currentTooltip = tooltip;
+          container.appendChild(tooltip);
+          this.currentTooltip = tooltip;
 
-            // Position tooltip
-            this.position(tooltip, element);
+          // Force layout calculation
+          tooltip.offsetHeight;
 
-            // Show with animation
-            requestAnimationFrame(() => {
-              tooltip.classList.add('show');
-            });
-          }, WallpaperApp.config.tooltipDelay);
+          // Position tooltip
+          this.position(tooltip, element);
+
+          // Show with animation
+          requestAnimationFrame(() => {
+            tooltip.classList.add('show');
+          });
         },
 
         position(tooltip, element) {
           const elementRect = element.getBoundingClientRect();
           const tooltipRect = tooltip.getBoundingClientRect();
+          const spacing = 8;
 
+          // Default position above element
           let left = elementRect.left + (elementRect.width / 2) - (tooltipRect.width / 2);
-          let top = elementRect.top - tooltipRect.height - 8;
+          let top = elementRect.top - tooltipRect.height - spacing;
 
-          // Boundary checks
-          if (left < 8) left = 8;
-          if (left + tooltipRect.width > window.innerWidth - 8) {
-            left = window.innerWidth - tooltipRect.width - 8;
-          }
-          if (top < 8) {
-            top = elementRect.bottom + 8;
+          // Horizontal boundary checks
+          const minLeft = spacing;
+          const maxLeft = window.innerWidth - tooltipRect.width - spacing;
+          left = Math.max(minLeft, Math.min(left, maxLeft));
+
+          // Vertical boundary check - position below if not enough space above
+          if (top < spacing) {
+            top = elementRect.bottom + spacing;
             tooltip.classList.add('tooltip-below');
           }
 
@@ -393,19 +440,21 @@
         },
 
         hide() {
-          if (this.showTimeout) {
-            clearTimeout(this.showTimeout);
-            this.showTimeout = null;
-          }
+          this.cancelScheduledShow();
+          this.cancelScheduledHide();
 
           if (this.currentTooltip) {
             this.currentTooltip.classList.remove('show');
+            const tooltipToRemove = this.currentTooltip;
+
             setTimeout(() => {
-              if (this.currentTooltip && this.currentTooltip.parentNode) {
-                this.currentTooltip.parentNode.removeChild(this.currentTooltip);
+              if (tooltipToRemove && tooltipToRemove.parentNode) {
+                tooltipToRemove.parentNode.removeChild(tooltipToRemove);
               }
-              this.currentTooltip = null;
-            }, 200);
+            }, 200); // Match CSS transition duration
+
+            this.currentTooltip = null;
+            this.currentElement = null;
           }
         }
       },

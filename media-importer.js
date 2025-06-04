@@ -1,6 +1,6 @@
 /**
  * FL Studio Wallpaper App - Enhanced Media Module
- * Version 0.5.0 - Refactored for improved stability and bug fixes
+ * Version 0.5.1 - Refactored for improved stability and bug fixes
  *
  * Key improvements:
  * - Fixed multi-item drag & drop functionality
@@ -219,7 +219,7 @@ const MediaModule = (() => {
         const importButton = Utils.createElement('button', {
           className: 'submenu-item import-media-button',
           textContent: 'IMPORT MEDIA',
-          attributes: { 'data-action': 'import-media-action' },
+          attributes: { 'data-action': 'import-media-action', 'data-tooltip': 'Click to import media files' },
         });
         menuContent.appendChild(importButton);
         menuContent.appendChild(Utils.createDivider());
@@ -312,7 +312,12 @@ const MediaModule = (() => {
       });
       playlistContainer.addEventListener('dragleave', (e) => {
         e.preventDefault();
-        playlistContainer.style.backgroundColor = '';
+        // Only remove highlight if we're leaving the container entirely
+        const rect = playlistContainer.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right ||
+            e.clientY < rect.top || e.clientY > rect.bottom) {
+          playlistContainer.style.backgroundColor = '';
+        }
       });
 
       state.dom.playlistEmptyState = Utils.createElement('div', {
@@ -706,96 +711,65 @@ const MediaModule = (() => {
       try {
         console.log('[DragDropHandler] Processing playlist drop event');
 
-        // Try to get JSON data first (for multiple items or reordering)
-        const jsonDataText = e.dataTransfer.getData('application/json');
+        // Get drop position information
+        const insertPosition = DragDropHandler.calculateInsertPosition(e);
+        console.log(`[DragDropHandler] Calculated insert position: ${insertPosition}`);
 
-        if (jsonDataText) {
-          console.log('[DragDropHandler] Found JSON data:', jsonDataText);
+        // Try to get data from dataTransfer
+        let dataProcessed = false;
 
-          try {
+        // First, try JSON data
+        try {
+          const jsonDataText = e.dataTransfer.getData('application/json');
+          if (jsonDataText && jsonDataText.trim()) {
+            console.log('[DragDropHandler] Found JSON data:', jsonDataText);
             const jsonData = JSON.parse(jsonDataText);
-            console.log('[DragDropHandler] Parsed JSON data:', jsonData);
 
-            // Handle multiple media items
-            if (jsonData?.type === 'multiple-media' && Array.isArray(jsonData.ids)) {
+            if (jsonData?.type === 'multiple-media' && Array.isArray(jsonData.ids) && jsonData.ids.length > 0) {
               console.log(`[DragDropHandler] Processing multiple media items: ${jsonData.ids.length} items`);
+              dataProcessed = true;
 
-              const insertPosition = this.calculateInsertPosition(e);
-              console.log(`[DragDropHandler] Insert position calculated: ${insertPosition}`);
-
-              // Validate all media items exist before processing
-              const validIds = jsonData.ids.filter(id => {
-                const media = state.mediaLibrary.find(m => m.id === id);
-                if (!media) {
-                  console.warn(`[DragDropHandler] Media ID "${id}" not found in library`);
-                  return false;
-                }
-                return true;
-              });
-
-              if (validIds.length === 0) {
-                Utils.showNotification('No valid media items found to add.', 'warning');
-                return;
-              }
-
-              // Add items in reverse order to maintain correct sequence
-              console.log(`[DragDropHandler] Adding ${validIds.length} valid items to playlist`);
-              let currentInsertPos = insertPosition;
-
-              validIds.forEach((id, index) => {
-                const media = state.mediaLibrary.find(m => m.id === id);
-                if (media) {
-                  console.log(`[DragDropHandler] Adding item ${index + 1}/${validIds.length}: "${media.name}" at position ${currentInsertPos}`);
-                  PlaylistManager.addItem(id, currentInsertPos);
-                  currentInsertPos++; // Increment for next item
-                }
-              });
-
-              Utils.showNotification(`Added ${validIds.length} item${validIds.length !== 1 ? 's' : ''} to playlist.`, 'success');
+              // Process multiple items
+              DragDropHandler.processMultipleMediaDrop(jsonData.ids, insertPosition);
               return;
-            }
-
-            // Handle playlist reordering
-            else if (jsonData?.type === 'playlist-reorder') {
+            } else if (jsonData?.type === 'playlist-reorder') {
               console.log('[DragDropHandler] Processing playlist reorder');
+              dataProcessed = true;
 
+              // Handle playlist reordering
               const fromIdx = parseInt(jsonData.index);
-              const toIdx = this.calculateInsertPosition(e, true);
+              const toIdx = insertPosition;
 
-              if (!isNaN(fromIdx) && !isNaN(toIdx)) {
+              if (!isNaN(fromIdx) && !isNaN(toIdx) && fromIdx !== toIdx) {
                 console.log(`[DragDropHandler] Reordering from ${fromIdx} to ${toIdx}`);
                 PlaylistManager.reorderItem(fromIdx, toIdx);
-              } else {
-                console.warn('[DragDropHandler] Invalid reorder indices:', { fromIdx, toIdx });
               }
               return;
             }
-
-            else {
-              console.warn('[DragDropHandler] Unknown JSON data type:', jsonData.type);
-            }
-          } catch (parseError) {
-            console.error('[DragDropHandler] Error parsing JSON data:', parseError);
-            console.log('[DragDropHandler] Raw JSON data was:', jsonDataText);
           }
+        } catch (jsonError) {
+          console.log('[DragDropHandler] No valid JSON data found:', jsonError.message);
         }
 
-        // Fallback to plain text data (single item)
-        const mediaId = e.dataTransfer.getData('text/plain');
-        console.log('[DragDropHandler] Trying plain text data:', mediaId);
+        // If no JSON data processed, try plain text (single item)
+        if (!dataProcessed) {
+          try {
+            const mediaId = e.dataTransfer.getData('text/plain');
+            if (mediaId && mediaId.trim()) {
+              console.log('[DragDropHandler] Found plain text data (single item):', mediaId);
+              const media = state.mediaLibrary.find(m => m.id === mediaId);
 
-        if (mediaId) {
-          const media = state.mediaLibrary.find(m => m.id === mediaId);
-          if (media) {
-            const insertPosition = this.calculateInsertPosition(e);
-            console.log(`[DragDropHandler] Adding single item "${media.name}" at position ${insertPosition}`);
-            PlaylistManager.addItem(mediaId, insertPosition);
-          } else {
-            console.warn(`[DragDropHandler] Media ID "${mediaId}" not found in library`);
-            Utils.showNotification('Dragged media not found.', 'error');
+              if (media) {
+                console.log(`[DragDropHandler] Adding single item "${media.name}" at position ${insertPosition}`);
+                PlaylistManager.addItem(mediaId, insertPosition);
+              } else {
+                console.warn(`[DragDropHandler] Media ID "${mediaId}" not found in library`);
+                Utils.showNotification('Dragged media not found.', 'error');
+              }
+            }
+          } catch (textError) {
+            console.log('[DragDropHandler] No valid text data found:', textError.message);
           }
-        } else {
-          console.warn('[DragDropHandler] No valid drag data found');
         }
 
       } catch (error) {
@@ -804,32 +778,105 @@ const MediaModule = (() => {
       }
     },
 
-    // Calculate insertion position for dropped items
-    calculateInsertPosition(e, isReorder = false) {
+    // Process multiple media items drop
+    processMultipleMediaDrop(mediaIds, insertPosition) {
       try {
-        const targetEl = e.target.closest('.playlist-item, .playlist-transition-zone');
-        let insertAt = state.playlist.items.length;
+        // Validate all media items exist
+        const validItems = [];
+        const invalidIds = [];
 
-        if (targetEl) {
-          const isItem = targetEl.classList.contains('playlist-item');
-          const targetIdx = parseInt(targetEl.dataset.index || '0', 10);
-
-          if (isItem) {
-            const tRect = targetEl.getBoundingClientRect();
-            const topHalf = e.clientY < tRect.top + tRect.height / 2;
-            insertAt = topHalf ? targetIdx : targetIdx + 1;
+        mediaIds.forEach(id => {
+          const media = state.mediaLibrary.find(m => m.id === id);
+          if (media) {
+            validItems.push({ id, media });
           } else {
-            // It's a transition zone
-            insertAt = targetIdx;
+            invalidIds.push(id);
           }
+        });
 
-          // For reordering, adjust target index
-          if (isReorder) {
-            // Additional logic for reordering can be added here if needed
-          }
+        if (invalidIds.length > 0) {
+          console.warn(`[DragDropHandler] Invalid media IDs found:`, invalidIds);
         }
 
-        return Math.max(0, Math.min(insertAt, state.playlist.items.length));
+        if (validItems.length === 0) {
+          Utils.showNotification('No valid media items found to add.', 'warning');
+          return;
+        }
+
+        console.log(`[DragDropHandler] Adding ${validItems.length} valid items to playlist`);
+
+        // Add items maintaining their original order
+        let currentInsertPos = insertPosition;
+        validItems.forEach((item, index) => {
+          console.log(`[DragDropHandler] Adding item ${index + 1}/${validItems.length}: "${item.media.name}" at position ${currentInsertPos}`);
+
+          // Add item without showing individual notifications
+          const prevItems = [...state.playlist.items];
+          if (currentInsertPos === -1 || currentInsertPos >= state.playlist.items.length) {
+            state.playlist.items.push(item.id);
+          } else {
+            state.playlist.items.splice(currentInsertPos, 0, item.id);
+          }
+
+          // Update current index if necessary
+          if (state.playlist.isPlaying && currentInsertPos <= state.playlist.currentIndex) {
+            state.playlist.currentIndex++;
+          }
+
+          // Update transitions
+          PlaylistManager.updateTransitionsAfterInsert(currentInsertPos);
+
+          // Increment position for next item
+          if (currentInsertPos !== -1) {
+            currentInsertPos++;
+          }
+        });
+
+        // Update UI once for all items
+        PlaylistManager.updateUI();
+        StorageManager.saveData();
+
+        // Show single notification for all items
+        Utils.showNotification(
+            `Added ${validItems.length} item${validItems.length !== 1 ? 's' : ''} to playlist.`,
+            'success'
+        );
+
+      } catch (error) {
+        console.error('[DragDropHandler.processMultipleMediaDrop] Error:', error);
+        Utils.showNotification('Error adding items to playlist.', 'error');
+      }
+    },
+
+    // Calculate insertion position for dropped items
+    calculateInsertPosition(e) {
+      try {
+        const container = state.dom.playlistContainer;
+        if (!container) return state.playlist.items.length;
+
+        // Check if we're dropping on a playlist item or transition zone
+        const targetEl = e.target.closest('.playlist-item, .playlist-transition-zone');
+
+        if (!targetEl) {
+          // Dropped on empty space - add to end
+          return state.playlist.items.length;
+        }
+
+        const isItem = targetEl.classList.contains('playlist-item');
+        const targetIdx = parseInt(targetEl.dataset.index || '0', 10);
+
+        if (isItem) {
+          // Dropped on an item - check if top or bottom half
+          const rect = targetEl.getBoundingClientRect();
+          const dropY = e.clientY;
+          const isTopHalf = dropY < rect.top + rect.height / 2;
+
+          return isTopHalf ? targetIdx : targetIdx + 1;
+        } else {
+          // Dropped on a transition zone
+          return targetIdx;
+        }
+
       } catch (error) {
         console.error('[DragDropHandler.calculateInsertPosition] Error:', error);
         return state.playlist.items.length;
@@ -1083,29 +1130,50 @@ const MediaModule = (() => {
       try {
         const thumbnail = Utils.createElement('div', {
           className: 'media-thumbnail',
-          attributes: { 'data-id': media.id, draggable: 'true' }
+          attributes: {
+            'data-id': media.id,
+            'draggable': 'true',
+            'data-tooltip': `${media.name} (${media.type})`
+          }
         });
 
-        // Setup drag handlers
+        // Setup drag handlers - FIXED FOR MULTI-ITEM SUPPORT
         thumbnail.addEventListener('dragstart', (e) => {
-          if (state.selection.items.has(media.id) && state.selection.items.size > 1) {
-            // Multiple items selected - use JSON format
-            e.dataTransfer.setData('application/json', JSON.stringify({
-              type: 'multiple-media',
-              ids: Array.from(state.selection.items)
-            }));
-            console.log('[MediaLibraryManager] Dragging multiple items:', state.selection.items.size);
-          } else {
-            // Single item - use plain text
-            e.dataTransfer.setData('text/plain', media.id);
-            console.log('[MediaLibraryManager] Dragging single item:', media.id);
+          try {
+            // Check if this item is part of a multi-selection
+            if (state.selection.items.size > 1 && state.selection.items.has(media.id)) {
+              // Multiple items selected - use JSON format with all selected IDs
+              const selectedIds = Array.from(state.selection.items);
+              const dragData = {
+                type: 'multiple-media',
+                ids: selectedIds
+              };
+
+              e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+              console.log('[MediaLibraryManager] Dragging multiple items:', selectedIds.length);
+
+              // Add visual feedback for all selected items
+              state.dom.mediaGallery.querySelectorAll('.media-thumbnail.selected').forEach(thumb => {
+                thumb.classList.add('dragging');
+              });
+            } else {
+              // Single item - use plain text for backward compatibility
+              e.dataTransfer.setData('text/plain', media.id);
+              console.log('[MediaLibraryManager] Dragging single item:', media.id);
+              thumbnail.classList.add('dragging');
+            }
+
+            e.dataTransfer.effectAllowed = 'copy';
+          } catch (error) {
+            console.error('[MediaLibraryManager] dragstart error:', error);
           }
-          e.dataTransfer.effectAllowed = 'copy';
-          thumbnail.classList.add('dragging');
         });
 
         thumbnail.addEventListener('dragend', () => {
-          thumbnail.classList.remove('dragging');
+          // Remove dragging class from all thumbnails
+          state.dom.mediaGallery.querySelectorAll('.media-thumbnail.dragging').forEach(thumb => {
+            thumb.classList.remove('dragging');
+          });
         });
 
         // Image container
@@ -1152,9 +1220,6 @@ const MediaModule = (() => {
           attributes: { 'aria-label': `Delete ${media.name}` }
         });
         thumbnail.appendChild(deleteBtn);
-
-        // Tooltip
-        thumbnail.setAttribute('title', `${media.name}\n(Right-click for options)`);
 
         return thumbnail;
       } catch (error) {
@@ -1306,19 +1371,26 @@ const MediaModule = (() => {
     // Reorder playlist item
     reorderItem(fromIndex, toIndex) {
       try {
+        // Validate indices
         if (fromIndex < 0 || fromIndex >= state.playlist.items.length ||
             toIndex < 0 || toIndex > state.playlist.items.length ||
-            fromIndex === toIndex) return;
+            fromIndex === toIndex) {
+          return;
+        }
 
-        const itemToMove = state.playlist.items.splice(fromIndex, 1)[0];
-        state.playlist.items.splice(toIndex, 0, itemToMove);
+        // Adjust toIndex for the removal of the item
+        const adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+
+        // Move the item
+        const [itemToMove] = state.playlist.items.splice(fromIndex, 1);
+        state.playlist.items.splice(adjustedToIndex, 0, itemToMove);
 
         // Update current index
         if (state.playlist.currentIndex === fromIndex) {
-          state.playlist.currentIndex = toIndex;
-        } else if (state.playlist.currentIndex > fromIndex && state.playlist.currentIndex <= toIndex) {
+          state.playlist.currentIndex = adjustedToIndex;
+        } else if (fromIndex < state.playlist.currentIndex && adjustedToIndex >= state.playlist.currentIndex) {
           state.playlist.currentIndex--;
-        } else if (state.playlist.currentIndex < fromIndex && state.playlist.currentIndex >= toIndex) {
+        } else if (fromIndex > state.playlist.currentIndex && adjustedToIndex <= state.playlist.currentIndex) {
           state.playlist.currentIndex++;
         }
 
