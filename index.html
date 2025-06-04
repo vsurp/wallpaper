@@ -9,33 +9,37 @@
     // Global namespace for the application
     window.WallpaperApp = {
       config: {
-        version: '0.1.9', // Version update
+        version: '0.1.9',
         animationDuration: 300,
         tooltipDelay: 1000,
         notificationDuration: 3000
       },
 
+      // Module registration system
       registerModule(name, module) {
         console.log('Registered module:', name);
         this[name] = module;
       },
 
+      // UI Management Module
       UI: {
         showNotification(message, type = 'info') {
           const container = document.getElementById('notification-container');
-          if (!container) {
-            return;
-          }
+          if (!container) return;
+
           if (container.children.length === 0) {
             container.style.visibility = 'visible';
           }
+
           const notification = document.createElement('div');
           notification.className = `notification ${type}`;
           notification.innerHTML = `
             <div class="notification-content">${message}</div>
             <button class="btn btn-icon notification-close" aria-label="Close notification">&times;</button>
           `;
+
           container.appendChild(notification);
+
           const closeBtn = notification.querySelector('.notification-close');
           const closeNotification = () => {
             notification.classList.remove('show');
@@ -48,6 +52,7 @@
               }
             }, 300);
           };
+
           closeBtn.addEventListener('click', closeNotification);
           requestAnimationFrame(() => notification.classList.add('show'));
           setTimeout(closeNotification, WallpaperApp.config.notificationDuration);
@@ -57,6 +62,7 @@
           const { id, title, content, footerButtons } = options;
           const modalContainer = document.getElementById('modal-container');
           if (!modalContainer) return;
+
           const modal = document.createElement('div');
           modal.className = 'modal acrylic acrylic-dark';
           modal.id = id || `modal-${Date.now()}`;
@@ -70,15 +76,18 @@
             </div>
             <div class="modal-footer"></div>
           `;
+
           if (typeof content !== 'string' && content instanceof HTMLElement) {
             modal.querySelector('.modal-body').appendChild(content);
           }
+
           const modalFooter = modal.querySelector('.modal-footer');
           if (footerButtons && footerButtons.length > 0) {
             footerButtons.forEach(btnData => {
               const button = document.createElement('button');
               button.textContent = btnData.text;
               button.className = `btn ${btnData.classes || 'btn-secondary'}`;
+
               if (btnData.onClick) {
                 button.addEventListener('click', () => {
                   if (btnData.onClick() !== false) {
@@ -97,6 +106,7 @@
             okButton.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
             modalFooter.appendChild(okButton);
           }
+
           modalContainer.appendChild(modal);
           modalContainer.style.display = 'flex';
           modal.querySelector('.modal-close').addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
@@ -106,6 +116,7 @@
         hideModal(id) {
           const modalContainer = document.getElementById('modal-container');
           const modalToHide = id ? document.getElementById(id) : modalContainer?.querySelector('.modal');
+
           if (modalToHide) {
             modalToHide.classList.remove('show');
             setTimeout(() => {
@@ -120,93 +131,114 @@
         }
       },
 
+      // Menu Tools Module - Refactored for better separation of concerns
       MenuTools: {
-        openL2Submenu: null,
-        activePerClipTransitionsPanel: null,
-        currentTargetId: null,
-        currentTargetType: null,
-
-        setL2Target: function(id, type) {
-          this.currentTargetId = id;
-          this.currentTargetType = type;
-          console.log('[MenuTools] L2 Target Set: ID=' + id + ', Type=' + type);
+        state: {
+          openL2Submenu: null,
+          activePerClipTransitionsPanel: null,
+          currentTargetId: null,
+          currentTargetType: null
         },
 
-        setupL2ItemListeners: function(parentElementId) {
+        // L2 Target Management
+        setL2Target(id, type) {
+          this.state.currentTargetId = id;
+          this.state.currentTargetType = type;
+          console.log(`[MenuTools] L2 Target Set: ID=${id}, Type=${type}`);
+        },
+
+        // L2 Item Event Handling
+        setupL2ItemListeners(parentElementId) {
           const parentElement = document.getElementById(parentElementId);
           if (!parentElement) {
-            console.warn('[MenuTools.setupL2ItemListeners] Parent element with ID "' + parentElementId + '" not found.');
+            console.warn(`[MenuTools.setupL2ItemListeners] Parent element with ID "${parentElementId}" not found.`);
             return;
           }
 
           const l2Items = parentElement.querySelectorAll('.submenu-item-l2');
           l2Items.forEach(item => {
-            const newClickHandler = () => {
-              const parentMenu = item.closest('.slide-submenu-l2');
-              if (!parentMenu) return;
-
-              const effectId = item.getAttribute('data-effect-id');
-              const itemId = effectId;
-              const itemType = 'effect';
-
-              let controlsContainer = item.nextElementSibling;
-              const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
-
-              if (isNewControlsContainer) {
-                if (controlsContainer && controlsContainer.classList.contains('parameter-controls-container')) {
-                  controlsContainer.remove();
-                }
-                controlsContainer = document.createElement('div');
-                controlsContainer.className = 'parameter-controls-container';
-                item.parentNode.insertBefore(controlsContainer, item.nextSibling);
-              }
-
-              if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
-                console.log('[MenuTools] Requesting params for ' + itemType + ' "' + itemId + '" to apply to Target ID: ' + WallpaperApp.MenuTools.currentTargetId + ', Target Type: ' + WallpaperApp.MenuTools.currentTargetType);
-                window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, WallpaperApp.MenuTools.currentTargetId, WallpaperApp.MenuTools.currentTargetType);
-              } else {
-                console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
-                controlsContainer.innerHTML = '<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>';
-              }
-
-              const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
-
-              parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
-                if (container !== controlsContainer) {
-                  container.classList.remove('visible');
-                  container.style.maxHeight = '0px';
-                  const prevSibling = container.previousElementSibling;
-                  if (prevSibling && prevSibling.classList.contains('submenu-item-l2')) {
-                    prevSibling.classList.remove('expanded');
-                  }
-                }
-              });
-              parentMenu.querySelectorAll('.submenu-item-l2.expanded').forEach(otherItem => {
-                if (otherItem !== item) otherItem.classList.remove('expanded');
-              });
-
-              if (isCurrentlyVisible) {
-                controlsContainer.classList.remove('visible');
-                controlsContainer.style.maxHeight = '0px';
-                item.classList.remove('expanded');
-              } else {
-                controlsContainer.classList.add('visible');
-                requestAnimationFrame(() => {
-                  controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px";
-                });
-                item.classList.add('expanded');
-              }
-            };
-
+            // Remove existing listeners to prevent duplicates
             if (item._l2ClickHandler) {
               item.removeEventListener('click', item._l2ClickHandler);
             }
-            item.addEventListener('click', newClickHandler);
-            item._l2ClickHandler = newClickHandler;
+
+            const clickHandler = () => this.handleL2ItemClick(item);
+            item.addEventListener('click', clickHandler);
+            item._l2ClickHandler = clickHandler;
           });
         },
 
-        openPerClipTransitionsPanel: function(playlistItemIndex, clipName) {
+        // Extracted L2 item click handling logic
+        handleL2ItemClick(item) {
+          const parentMenu = item.closest('.slide-submenu-l2');
+          if (!parentMenu) return;
+
+          const effectId = item.getAttribute('data-effect-id');
+          const itemId = effectId;
+          const itemType = 'effect';
+
+          // Create or get controls container
+          let controlsContainer = item.nextElementSibling;
+          const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
+
+          if (isNewControlsContainer) {
+            if (controlsContainer && controlsContainer.classList.contains('parameter-controls-container')) {
+              controlsContainer.remove();
+            }
+            controlsContainer = document.createElement('div');
+            controlsContainer.className = 'parameter-controls-container';
+            item.parentNode.insertBefore(controlsContainer, item.nextSibling);
+          }
+
+          // Populate parameters
+          if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
+            console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}" to apply to Target ID: ${this.state.currentTargetId}, Target Type: ${this.state.currentTargetType}`);
+            window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, this.state.currentTargetId, this.state.currentTargetType);
+          } else {
+            console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
+            controlsContainer.innerHTML = '<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>';
+          }
+
+          // Handle expansion state
+          this.toggleL2ItemExpansion(item, controlsContainer, parentMenu);
+        },
+
+        // Toggle L2 item expansion with proper state management
+        toggleL2ItemExpansion(item, controlsContainer, parentMenu) {
+          const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
+
+          // Collapse all other items in the same menu
+          parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
+            if (container !== controlsContainer) {
+              container.classList.remove('visible');
+              container.style.maxHeight = '0px';
+              const prevSibling = container.previousElementSibling;
+              if (prevSibling && prevSibling.classList.contains('submenu-item-l2')) {
+                prevSibling.classList.remove('expanded');
+              }
+            }
+          });
+
+          parentMenu.querySelectorAll('.submenu-item-l2.expanded').forEach(otherItem => {
+            if (otherItem !== item) otherItem.classList.remove('expanded');
+          });
+
+          // Toggle current item
+          if (isCurrentlyVisible) {
+            controlsContainer.classList.remove('visible');
+            controlsContainer.style.maxHeight = '0px';
+            item.classList.remove('expanded');
+          } else {
+            controlsContainer.classList.add('visible');
+            requestAnimationFrame(() => {
+              controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px";
+            });
+            item.classList.add('expanded');
+          }
+        },
+
+        // Per-clip transitions panel management
+        openPerClipTransitionsPanel(playlistItemIndex, clipName) {
           const panel = document.getElementById('per-clip-transitions-panel');
           const panelWrapper = document.getElementById('slide-left-panel-wrapper');
           const importMediaSubmenu = document.getElementById('import-media-submenu');
@@ -216,39 +248,44 @@
             return;
           }
 
-          if (this.activePerClipTransitionsPanel && this.activePerClipTransitionsPanel !== panel) {
+          // Close any existing panel
+          if (this.state.activePerClipTransitionsPanel && this.state.activePerClipTransitionsPanel !== panel) {
             this.closePerClipTransitionsPanel();
           }
 
+          // Update panel title
           const panelHeaderTitle = panel.querySelector('.panel-header-title');
-          if(panelHeaderTitle) panelHeaderTitle.textContent = 'Transitions for: ' + clipName;
+          if (panelHeaderTitle) panelHeaderTitle.textContent = `Transitions for: ${clipName}`;
 
+          // Populate transitions
           if (window.MediaModule && typeof window.MediaModule.populatePerClipTransitions === 'function') {
             window.MediaModule.populatePerClipTransitions(playlistItemIndex);
           }
 
+          // Position and show panel
           const importMediaSubmenuWidth = importMediaSubmenu.offsetWidth;
-          panelWrapper.style.right = 'calc(var(--menu-width) + ' + importMediaSubmenuWidth + 'px)';
+          panelWrapper.style.right = `calc(var(--menu-width) + ${importMediaSubmenuWidth}px)`;
           panelWrapper.style.display = 'block';
 
           requestAnimationFrame(() => {
             panelWrapper.classList.add('active');
           });
 
-          this.activePerClipTransitionsPanel = panel;
+          this.state.activePerClipTransitionsPanel = panel;
           document.getElementById('main-menu').classList.add('main-menu-slide-left-active');
         },
 
-        closePerClipTransitionsPanel: function() {
+        closePerClipTransitionsPanel() {
           const panelWrapper = document.getElementById('slide-left-panel-wrapper');
-          if (!this.activePerClipTransitionsPanel || !panelWrapper) {
-            if (this.activePerClipTransitionsPanel) this.activePerClipTransitionsPanel = null;
+
+          if (!this.state.activePerClipTransitionsPanel || !panelWrapper) {
+            if (this.state.activePerClipTransitionsPanel) this.state.activePerClipTransitionsPanel = null;
             document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
-            if(panelWrapper) panelWrapper.style.display = 'none';
+            if (panelWrapper) panelWrapper.style.display = 'none';
             return;
           }
 
-          this.activePerClipTransitionsPanel = null;
+          this.state.activePerClipTransitionsPanel = null;
           document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
 
           if (panelWrapper.classList.contains('active')) {
@@ -262,6 +299,7 @@
             };
             panelWrapper.addEventListener('transitionend', transitionEndHandler);
 
+            // Fallback timeout
             setTimeout(() => {
               if (!panelWrapper.classList.contains('active')) {
                 panelWrapper.style.display = 'none';
@@ -273,6 +311,105 @@
           }
         }
       },
+
+      // Tooltip System - NEW IMPLEMENTATION
+      Tooltip: {
+        currentTooltip: null,
+        showTimeout: null,
+
+        init() {
+          this.setupEventListeners();
+          this.createTooltipContainer();
+        },
+
+        createTooltipContainer() {
+          if (!document.getElementById('tooltip-container')) {
+            const container = document.createElement('div');
+            container.id = 'tooltip-container';
+            container.className = 'tooltip-container';
+            document.body.appendChild(container);
+          }
+        },
+
+        setupEventListeners() {
+          document.addEventListener('mouseover', (e) => {
+            const element = e.target.closest('[data-tooltip]');
+            if (element) {
+              this.show(element, element.dataset.tooltip);
+            }
+          });
+
+          document.addEventListener('mouseout', (e) => {
+            const element = e.target.closest('[data-tooltip]');
+            if (element) {
+              this.hide();
+            }
+          });
+        },
+
+        show(element, text) {
+          this.hide(); // Hide any existing tooltip
+
+          this.showTimeout = setTimeout(() => {
+            const container = document.getElementById('tooltip-container');
+            if (!container || !text) return;
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.textContent = text;
+
+            container.appendChild(tooltip);
+            this.currentTooltip = tooltip;
+
+            // Position tooltip
+            this.position(tooltip, element);
+
+            // Show with animation
+            requestAnimationFrame(() => {
+              tooltip.classList.add('show');
+            });
+          }, WallpaperApp.config.tooltipDelay);
+        },
+
+        position(tooltip, element) {
+          const elementRect = element.getBoundingClientRect();
+          const tooltipRect = tooltip.getBoundingClientRect();
+
+          let left = elementRect.left + (elementRect.width / 2) - (tooltipRect.width / 2);
+          let top = elementRect.top - tooltipRect.height - 8;
+
+          // Boundary checks
+          if (left < 8) left = 8;
+          if (left + tooltipRect.width > window.innerWidth - 8) {
+            left = window.innerWidth - tooltipRect.width - 8;
+          }
+          if (top < 8) {
+            top = elementRect.bottom + 8;
+            tooltip.classList.add('tooltip-below');
+          }
+
+          tooltip.style.left = `${left}px`;
+          tooltip.style.top = `${top}px`;
+        },
+
+        hide() {
+          if (this.showTimeout) {
+            clearTimeout(this.showTimeout);
+            this.showTimeout = null;
+          }
+
+          if (this.currentTooltip) {
+            this.currentTooltip.classList.remove('show');
+            setTimeout(() => {
+              if (this.currentTooltip && this.currentTooltip.parentNode) {
+                this.currentTooltip.parentNode.removeChild(this.currentTooltip);
+              }
+              this.currentTooltip = null;
+            }, 200);
+          }
+        }
+      },
+
       Utils: {}
     };
   </script>
@@ -298,21 +435,22 @@
       <div class="menu-section" data-section="main">
         <h2 style="text-align: center; width: 100%;">MENU</h2>
         <hr class="divider">
-        <button class="category-item" data-action="import-media">MEDIA PLAYER</button>
-        <button class="category-item" data-action="effects">EFFECTS</button>
+        <button class="category-item" data-action="import-media" data-tooltip="Import and manage your media files, create playlists">MEDIA PLAYER</button>
+        <button class="category-item" data-action="effects" data-tooltip="Apply visual effects to your media">EFFECTS</button>
         <hr class="divider">
-        <button class="category-item" data-action="daw-integration">DAW INTEGRATION</button>
-        <button class="category-item" data-action="performance">PERFORMANCE</button>
-        <button class="category-item" data-action="extra">EXTRA</button>
+        <button class="category-item" data-action="daw-integration" data-tooltip="Connect with your Digital Audio Workstation">DAW INTEGRATION</button>
+        <button class="category-item" data-action="performance" data-tooltip="Optimize performance for your system">PERFORMANCE</button>
+        <button class="category-item" data-action="extra" data-tooltip="Additional features and customizations">EXTRA</button>
         <hr class="divider">
-        <button class="category-item" data-action="config-settings">CONFIG SETTINGS</button>
-        <button class="category-item" data-action="menu-settings">MENU SETTINGS</button>
-        <button class="category-item" data-action="about">ABOUT</button>
+        <button class="category-item" data-action="config-settings" data-tooltip="Configure application settings">CONFIG SETTINGS</button>
+        <button class="category-item" data-action="menu-settings" data-tooltip="Customize menu appearance and behavior">MENU SETTINGS</button>
+        <button class="category-item" data-action="about" data-tooltip="About this application and credits">ABOUT</button>
         <hr class="divider">
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v0.1.9</div> </div>
+      <div class="version-info">v0.1.9</div>
+    </div>
   </nav>
 
   <div class="submenu-wrapper">
@@ -321,54 +459,58 @@
         <h1>MEDIA PLAYER</h1>
         <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
       </div>
-      <div class="menu-content">
-      </div>
+      <div class="menu-content"></div>
       <div class="menu-footer"></div>
     </div>
 
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="fl-studio-connection">FL STUDIO</button>
-        <button class="submenu-item" data-action="ableton-connection">ABLETON LIVE</button>
-        <button class="submenu-item" data-action="logic-connection">LOGIC PRO</button>
-        <button class="submenu-item" data-action="pro-tools-connection">PRO TOOLS</button>
-        <button class="submenu-item" data-action="custom-daw-connection">CUSTOM DAW</button>
+        <button class="submenu-item" data-action="fl-studio-connection" data-tooltip="Connect to FL Studio for theme synchronization">FL STUDIO</button>
+        <button class="submenu-item" data-action="ableton-connection" data-tooltip="Connect to Ableton Live">ABLETON LIVE</button>
+        <button class="submenu-item" data-action="logic-connection" data-tooltip="Connect to Logic Pro">LOGIC PRO</button>
+        <button class="submenu-item" data-action="pro-tools-connection" data-tooltip="Connect to Pro Tools">PRO TOOLS</button>
+        <button class="submenu-item" data-action="custom-daw-connection" data-tooltip="Configure custom DAW connection">CUSTOM DAW</button>
       </div></div><div class="menu-footer"></div>
     </div>
+
     <div id="performance-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>PERFORMANCE</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="perf-opt1">OPTIMIZATION 1</button>
-        <button class="submenu-item" data-action="perf-opt2">OPTIMIZATION 2</button>
+        <button class="submenu-item" data-action="perf-opt1" data-tooltip="Optimize rendering performance">OPTIMIZATION 1</button>
+        <button class="submenu-item" data-action="perf-opt2" data-tooltip="Reduce memory usage">OPTIMIZATION 2</button>
       </div></div><div class="menu-footer"></div>
     </div>
+
     <div id="extra-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>EXTRA</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="visualizer-styles">VISUALIZER STYLES</button>
-        <button class="submenu-item" data-action="clock-display">CLOCK DISPLAY</button>
+        <button class="submenu-item" data-action="visualizer-styles" data-tooltip="Choose from different visualizer styles">VISUALIZER STYLES</button>
+        <button class="submenu-item" data-action="clock-display" data-tooltip="Show or hide clock display">CLOCK DISPLAY</button>
       </div></div><div class="menu-footer"></div>
     </div>
+
     <div id="config-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>CONFIG SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="startup-behavior">STARTUP BEHAVIOR</button>
-        <button class="submenu-item" data-action="auto-save">AUTO SAVE</button>
+        <button class="submenu-item" data-action="startup-behavior" data-tooltip="Configure how the app starts">STARTUP BEHAVIOR</button>
+        <button class="submenu-item" data-action="auto-save" data-tooltip="Enable or disable automatic saving">AUTO SAVE</button>
       </div></div><div class="menu-footer"></div>
     </div>
+
     <div id="menu-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>MENU SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="menu-position">MENU POSITION</button>
-        <button class="submenu-item" data-action="menu-opacity">MENU OPACITY</button>
+        <button class="submenu-item" data-action="menu-position" data-tooltip="Change menu position on screen">MENU POSITION</button>
+        <button class="submenu-item" data-action="menu-opacity" data-tooltip="Adjust menu transparency">MENU OPACITY</button>
       </div></div><div class="menu-footer"></div>
     </div>
+
     <div id="about-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>ABOUT</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="app-info">APP INFORMATION</button>
-        <button class="submenu-item" data-action="credits">CREDITS</button>
+        <button class="submenu-item" data-action="app-info" data-tooltip="Version and system information">APP INFORMATION</button>
+        <button class="submenu-item" data-action="credits" data-tooltip="Development credits and acknowledgments">CREDITS</button>
       </div></div><div class="menu-footer"></div>
     </div>
   </div>
@@ -380,8 +522,7 @@
         <button class="btn btn-icon submenu-close-l2" aria-label="Close L2 submenu">&times;</button>
       </div>
       <div class="menu-content">
-        <div class="menu-section">
-        </div>
+        <div class="menu-section"></div>
       </div>
       <div class="menu-footer"></div>
     </div>
@@ -394,106 +535,145 @@
         <button class="btn btn-icon panel-close" aria-label="Close transitions panel">&times;</button>
       </div>
       <div class="menu-content">
-        <div class="menu-section" id="per-clip-transitions-list">
-        </div>
+        <div class="menu-section" id="per-clip-transitions-list"></div>
       </div>
-      <div class="menu-footer">
-      </div>
+      <div class="menu-footer"></div>
     </div>
   </div>
 
-
-  <div id="tooltip-container"></div>
   <div id="notification-container" style="visibility: hidden;"></div>
   <div id="modal-container" style="display: none;"></div>
   <div id="context-menu-container" class="context-menu"></div>
   <div id="inline-panel-container" class="inline-panel"></div>
-
 </div>
+
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
+    try {
+      // Initialize tooltip system
+      WallpaperApp.Tooltip.init();
 
-    setupMenuSystem();
-    populateL2Submenu('effects-list-submenu', MediaModule.getAvailableEffects(), 'effect');
-    WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
+      // Show ready notification
+      WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
 
-    const perClipPanelCloseBtn = document.querySelector('#per-clip-transitions-panel .panel-close');
-    if (perClipPanelCloseBtn) {
-      perClipPanelCloseBtn.addEventListener('click', () => {
-        WallpaperApp.MenuTools.closePerClipTransitionsPanel();
-      });
+      // Initialize menu system
+      const menuSystem = setupMenuSystem();
+      if (!menuSystem.success) {
+        throw new Error('Menu system initialization failed');
+      }
+
+      // Initialize effects submenu
+      if (window.MediaModule && typeof window.MediaModule.getAvailableEffects === 'function') {
+        populateL2Submenu('effects-list-submenu', window.MediaModule.getAvailableEffects(), 'effect');
+        WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
+      }
+
+      // Setup per-clip transitions panel close button
+      const perClipPanelCloseBtn = document.querySelector('#per-clip-transitions-panel .panel-close');
+      if (perClipPanelCloseBtn) {
+        perClipPanelCloseBtn.addEventListener('click', () => {
+          WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+        });
+      }
+
+    } catch (error) {
+      console.error('[App Initialization] Critical error:', error);
+      WallpaperApp.UI.showNotification('Failed to initialize application. Check console for details.', 'error');
     }
 
+    // Populate L2 submenu helper function
     function populateL2Submenu(submenuId, items, type) {
-      const submenu = document.getElementById(submenuId);
-      if (!submenu) {
-        console.error('[populateL2Submenu] Submenu with ID "' + submenuId + '" not found.');
-        return;
-      }
-      const menuContentSection = submenu.querySelector('.menu-content .menu-section');
-      if (!menuContentSection) {
-        console.error('[populateL2Submenu] Menu content section not found in submenu "' + submenuId + '".');
-        return;
-      }
-      menuContentSection.innerHTML = '';
-
-      items.forEach(item => {
-        const button = document.createElement('button');
-        button.className = 'submenu-item-l2';
-        button.textContent = item.name;
-        if (type === 'effect') {
-          button.setAttribute('data-effect-id', item.id);
-        }
-        menuContentSection.appendChild(button);
-      });
-    }
-
-    function setupMenuSystem() {
       try {
-        const menuTrigger = document.getElementById('menu-trigger');
-        const mainMenu = document.getElementById('main-menu');
-        const menuClose = mainMenu.querySelector('.menu-close');
-        const categoryItems = document.querySelectorAll('#main-menu .category-item');
-        const submenuWrapperL1 = document.querySelector('.submenu-wrapper');
-        const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
-        const submenuCloseButtonsL1 = document.querySelectorAll('.submenu-wrapper .submenu-close');
-        const submenuCloseButtonsL2 = document.querySelectorAll('.submenu-wrapper-l2 .submenu-close-l2');
-
-        if (!mainMenu || !submenuWrapperL1 || !submenuWrapperL2) {
-          console.error("[setupMenuSystem] Critical menu elements not found. Aborting menu setup.");
+        const submenu = document.getElementById(submenuId);
+        if (!submenu) {
+          console.error(`[populateL2Submenu] Submenu with ID "${submenuId}" not found.`);
           return;
         }
 
-        let menuAnimationTimeMs = WallpaperApp.config.animationDuration;
+        const menuContentSection = submenu.querySelector('.menu-content .menu-section');
+        if (!menuContentSection) {
+          console.error(`[populateL2Submenu] Menu content section not found in submenu "${submenuId}".`);
+          return;
+        }
 
+        menuContentSection.innerHTML = '';
+
+        items.forEach(item => {
+          const button = document.createElement('button');
+          button.className = 'submenu-item-l2';
+          button.textContent = item.name;
+          button.setAttribute('data-tooltip', `Apply ${item.name} effect to selected media`);
+
+          if (type === 'effect') {
+            button.setAttribute('data-effect-id', item.id);
+          }
+
+          menuContentSection.appendChild(button);
+        });
+      } catch (error) {
+        console.error(`[populateL2Submenu] Error populating submenu "${submenuId}":`, error);
+      }
+    }
+
+    // Enhanced menu system setup with better error handling and state management
+    function setupMenuSystem() {
+      try {
+        const elements = getMenuElements();
+        if (!elements.success) {
+          return { success: false, error: 'Failed to get menu elements' };
+        }
+
+        const { menuTrigger, mainMenu, menuClose, categoryItems, submenuWrapperL1, submenuWrapperL2 } = elements;
+
+        const menuState = {
+          animationInProgress: false,
+          currentL1Submenu: null,
+          currentL2Submenu: null
+        };
+
+        const menuAnimationTimeMs = WallpaperApp.config.animationDuration;
+
+        // Enhanced animation helper with promise support
         function afterAnimation(element, callback) {
           setTimeout(() => {
             if (callback) callback();
           }, menuAnimationTimeMs + 50);
         }
 
+        // Improved per-clip transitions panel management
         async function closeActivePerClipTransitionsPanel() {
           WallpaperApp.MenuTools.closePerClipTransitionsPanel();
         }
 
+        // Enhanced L2 submenu closure with state tracking
         async function closeLevel2Submenus(keepL1Open = false) {
           return new Promise(resolve => {
-            if (!submenuWrapperL2) { resolve(); return; }
+            if (!submenuWrapperL2) {
+              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
+              resolve();
+              return;
+            }
+
             const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
             if (activeL2Wrapper) {
               activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active').forEach(submenu => {
                 submenu.classList.remove('active');
                 submenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
-                  container.classList.remove('visible'); container.style.maxHeight = '0px';
+                  container.classList.remove('visible');
+                  container.style.maxHeight = '0px';
                 });
                 submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(item => item.classList.remove('expanded'));
               });
+
               activeL2Wrapper.classList.remove('active');
+              menuState.currentL2Submenu = null;
+
               if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
 
               afterAnimation(activeL2Wrapper, () => {
-                if (!activeL2Wrapper.classList.contains('active')) activeL2Wrapper.style.display = 'none';
+                if (!activeL2Wrapper.classList.contains('active')) {
+                  activeL2Wrapper.style.display = 'none';
+                }
                 resolve();
               });
             } else {
@@ -503,23 +683,33 @@
           });
         }
 
+        // Enhanced L1 submenu closure with state tracking
         async function closeLevel1Submenus(keepMainMenuOpen = false) {
           return new Promise(async resolve => {
             await closeLevel2Submenus(true);
             await closeActivePerClipTransitionsPanel();
 
-            if (!submenuWrapperL1) { resolve(); return; }
+            if (!submenuWrapperL1) {
+              resolve();
+              return;
+            }
+
             const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
             if (activeL1Wrapper) {
               activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
               activeL1Wrapper.classList.remove('active');
+              menuState.currentL1Submenu = null;
+
               if (!keepMainMenuOpen) {
                 mainMenu.classList.remove('main-menu-submenu-active');
                 mainMenu.classList.remove('main-menu-l2-active');
                 mainMenu.classList.remove('main-menu-slide-left-active');
               }
+
               afterAnimation(activeL1Wrapper, () => {
-                if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
+                if (!activeL1Wrapper.classList.contains('active')) {
+                  activeL1Wrapper.style.display = 'none';
+                }
                 resolve();
               });
             } else {
@@ -533,107 +723,228 @@
           });
         }
 
+        // Enhanced main menu closure
         async function closeMainMenu() {
           return new Promise(async resolve => {
-            await closeLevel1Submenus();
-            if (mainMenu.classList.contains('active')) {
-              mainMenu.classList.remove('active');
-              afterAnimation(mainMenu, resolve);
-            } else {
+            if (menuState.animationInProgress) {
+              resolve();
+              return;
+            }
+
+            menuState.animationInProgress = true;
+
+            try {
+              await closeLevel1Submenus();
+
+              if (mainMenu.classList.contains('active')) {
+                mainMenu.classList.remove('active');
+                afterAnimation(mainMenu, () => {
+                  menuState.animationInProgress = false;
+                  resolve();
+                });
+              } else {
+                menuState.animationInProgress = false;
+                resolve();
+              }
+            } catch (error) {
+              console.error('[closeMainMenu] Error:', error);
+              menuState.animationInProgress = false;
               resolve();
             }
           });
         }
 
+        // Enhanced L1 submenu opening with state management
         async function openL1Submenu(targetL1Submenu) {
           return new Promise(async resolve => {
-            if (!targetL1Submenu || !submenuWrapperL1) { resolve(false); return; }
-            await closeLevel2Submenus(true);
-            await closeActivePerClipTransitionsPanel();
+            if (!targetL1Submenu || !submenuWrapperL1) {
+              resolve(false);
+              return;
+            }
 
-            const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
+            if (menuState.animationInProgress) {
+              resolve(false);
+              return;
+            }
 
-            const openLogic = () => {
-              targetL1Submenu.classList.add('active');
-              submenuWrapperL1.style.display = 'block';
-              requestAnimationFrame(() => {
-                submenuWrapperL1.classList.add('active');
-                mainMenu.classList.add('main-menu-submenu-active');
-                mainMenu.classList.remove('main-menu-l2-active');
-                mainMenu.classList.remove('main-menu-slide-left-active');
-                afterAnimation(submenuWrapperL1, () => resolve(true));
-              });
-            };
+            menuState.animationInProgress = true;
 
-            if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
-              currentActiveL1Submenu.classList.remove('active');
-              afterAnimation(currentActiveL1Submenu, openLogic);
-            } else if (!currentActiveL1Submenu || currentActiveL1Submenu !== targetL1Submenu) {
-              openLogic();
-            } else if (currentActiveL1Submenu === targetL1Submenu) {
-              if (!submenuWrapperL1.classList.contains('active')) {
+            try {
+              await closeLevel2Submenus(true);
+              await closeActivePerClipTransitionsPanel();
+
+              const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
+
+              const openLogic = () => {
+                targetL1Submenu.classList.add('active');
+                submenuWrapperL1.style.display = 'block';
+                menuState.currentL1Submenu = targetL1Submenu;
+
+                requestAnimationFrame(() => {
+                  submenuWrapperL1.classList.add('active');
+                  mainMenu.classList.add('main-menu-submenu-active');
+                  mainMenu.classList.remove('main-menu-l2-active');
+                  mainMenu.classList.remove('main-menu-slide-left-active');
+
+                  afterAnimation(submenuWrapperL1, () => {
+                    menuState.animationInProgress = false;
+                    resolve(true);
+                  });
+                });
+              };
+
+              if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
+                currentActiveL1Submenu.classList.remove('active');
+                afterAnimation(currentActiveL1Submenu, openLogic);
+              } else if (!currentActiveL1Submenu || currentActiveL1Submenu !== targetL1Submenu) {
                 openLogic();
-              } else {
-                mainMenu.classList.add('main-menu-submenu-active');
-                mainMenu.classList.remove('main-menu-l2-active');
-                mainMenu.classList.remove('main-menu-slide-left-active');
-                resolve(true);
+              } else if (currentActiveL1Submenu === targetL1Submenu) {
+                if (!submenuWrapperL1.classList.contains('active')) {
+                  openLogic();
+                } else {
+                  mainMenu.classList.add('main-menu-submenu-active');
+                  mainMenu.classList.remove('main-menu-l2-active');
+                  mainMenu.classList.remove('main-menu-slide-left-active');
+                  menuState.animationInProgress = false;
+                  resolve(true);
+                }
               }
+            } catch (error) {
+              console.error('[openL1Submenu] Error:', error);
+              menuState.animationInProgress = false;
+              resolve(false);
             }
           });
         }
 
+        // Enhanced L2 submenu opening
         WallpaperApp.MenuTools.openL2Submenu = async function(submenuIdL2) {
           const submenuL2 = document.getElementById(submenuIdL2);
           if (!submenuL2 || !submenuWrapperL2) return;
 
-          await closeActivePerClipTransitionsPanel();
+          if (menuState.animationInProgress) return;
 
-          const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
-          if (activeL1Wrapper) {
-            activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
-            activeL1Wrapper.classList.remove('active');
-            afterAnimation(activeL1Wrapper, () => {
-              if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
-            });
-          }
-          mainMenu.classList.remove('main-menu-submenu-active');
-          mainMenu.classList.remove('main-menu-slide-left-active');
+          menuState.animationInProgress = true;
 
-          const currentActiveL2Wrapper = submenuWrapperL2;
-          const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
+          try {
+            await closeActivePerClipTransitionsPanel();
 
-          const openTargetL2 = () => {
-            submenuL2.classList.add('active');
-            currentActiveL2Wrapper.style.display = 'block';
-            requestAnimationFrame(() => {
-              currentActiveL2Wrapper.classList.add('active');
-              mainMenu.classList.add('main-menu-l2-active');
-              WallpaperApp.MenuTools.setupL2ItemListeners(submenuIdL2);
-            });
-          };
+            const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
+            if (activeL1Wrapper) {
+              activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
+              activeL1Wrapper.classList.remove('active');
+              afterAnimation(activeL1Wrapper, () => {
+                if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
+              });
+            }
 
-          if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
-            currentActiveL2Submenu.classList.remove('active');
-            currentActiveL2Submenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {c.classList.remove('visible'); c.style.maxHeight = '0px';});
-            currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
-            afterAnimation(currentActiveL2Submenu, openTargetL2);
-          } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
-            openTargetL2();
+            mainMenu.classList.remove('main-menu-submenu-active');
+            mainMenu.classList.remove('main-menu-slide-left-active');
+
+            const currentActiveL2Wrapper = submenuWrapperL2;
+            const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
+
+            const openTargetL2 = () => {
+              submenuL2.classList.add('active');
+              currentActiveL2Wrapper.style.display = 'block';
+              menuState.currentL2Submenu = submenuL2;
+
+              requestAnimationFrame(() => {
+                currentActiveL2Wrapper.classList.add('active');
+                mainMenu.classList.add('main-menu-l2-active');
+                WallpaperApp.MenuTools.setupL2ItemListeners(submenuIdL2);
+                menuState.animationInProgress = false;
+              });
+            };
+
+            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
+              currentActiveL2Submenu.classList.remove('active');
+              currentActiveL2Submenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {
+                c.classList.remove('visible');
+                c.style.maxHeight = '0px';
+              });
+              currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
+              afterAnimation(currentActiveL2Submenu, openTargetL2);
+            } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
+              openTargetL2();
+            }
+          } catch (error) {
+            console.error('[openL2Submenu] Error:', error);
+            menuState.animationInProgress = false;
           }
         };
 
-        if(menuTrigger) menuTrigger.addEventListener('click', async () => { mainMenu.classList.contains('active') ? await closeMainMenu() : mainMenu.classList.add('active'); });
-        if (menuClose) menuClose.addEventListener('click', closeMainMenu);
+        // Event listeners setup
+        setupEventListeners(menuTrigger, mainMenu, menuClose, categoryItems, closeMainMenu, closeLevel1Submenus, closeLevel2Submenus, openL1Submenu, closeActivePerClipTransitionsPanel);
 
-        categoryItems.forEach(item => {
-          item.addEventListener('click', async () => {
+        return { success: true };
+
+      } catch (error) {
+        console.error("[setupMenuSystem] Error during setup:", error);
+        WallpaperApp.UI.showNotification("Error initializing menu system.", "error");
+        return { success: false, error: error.message };
+      }
+    }
+
+    // Extract element gathering into separate function for better organization
+    function getMenuElements() {
+      try {
+        const menuTrigger = document.getElementById('menu-trigger');
+        const mainMenu = document.getElementById('main-menu');
+        const menuClose = mainMenu?.querySelector('.menu-close');
+        const categoryItems = document.querySelectorAll('#main-menu .category-item');
+        const submenuWrapperL1 = document.querySelector('.submenu-wrapper');
+        const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
+
+        if (!mainMenu || !submenuWrapperL1 || !submenuWrapperL2) {
+          console.error("[getMenuElements] Critical menu elements not found.");
+          return { success: false };
+        }
+
+        return {
+          success: true,
+          menuTrigger,
+          mainMenu,
+          menuClose,
+          categoryItems,
+          submenuWrapperL1,
+          submenuWrapperL2
+        };
+      } catch (error) {
+        console.error("[getMenuElements] Error:", error);
+        return { success: false };
+      }
+    }
+
+    // Extract event listeners setup for better organization
+    function setupEventListeners(menuTrigger, mainMenu, menuClose, categoryItems, closeMainMenu, closeLevel1Submenus, closeLevel2Submenus, openL1Submenu, closeActivePerClipTransitionsPanel) {
+      // Menu trigger events
+      if (menuTrigger) {
+        menuTrigger.addEventListener('click', async () => {
+          if (mainMenu.classList.contains('active')) {
+            await closeMainMenu();
+          } else {
+            mainMenu.classList.add('active');
+          }
+        });
+      }
+
+      // Menu close button
+      if (menuClose) {
+        menuClose.addEventListener('click', closeMainMenu);
+      }
+
+      // Category item click handlers with enhanced state management
+      categoryItems.forEach(item => {
+        item.addEventListener('click', async () => {
+          try {
             const action = item.getAttribute('data-action');
             const isEffectsAction = action === 'effects';
 
             const isCurrentlySelected = item.classList.contains('selected');
             let associatedMenuIsOpen = false;
 
+            // Check if associated menu is currently open
             if (isEffectsAction) {
               const effectsMenu = document.getElementById('effects-list-submenu');
               if (effectsMenu && effectsMenu.classList.contains('active') && effectsMenu.closest('.submenu-wrapper-l2.active')) {
@@ -646,6 +957,7 @@
               }
             }
 
+            // Toggle logic
             if (isCurrentlySelected && associatedMenuIsOpen) {
               item.classList.remove('selected');
               if (isEffectsAction) {
@@ -655,6 +967,7 @@
               }
               WallpaperApp.MenuTools.setL2Target(null, null);
             } else {
+              // Clear all selections first
               categoryItems.forEach(ci => ci.classList.remove('selected'));
               item.classList.add('selected');
 
@@ -673,40 +986,50 @@
                   item.classList.remove('selected');
                 }
               }
+
               if (!isEffectsAction) {
                 WallpaperApp.MenuTools.setL2Target(null, null);
               }
             }
-          });
+          } catch (error) {
+            console.error('[Category item click] Error:', error);
+          }
         });
+      });
 
-        submenuCloseButtonsL1.forEach(button => {
-          button.addEventListener('click', async () => {
-            const parentSubmenu = button.closest('.slide-submenu');
-            if (parentSubmenu) {
-              const action = parentSubmenu.id.replace('-submenu', '');
-              document.querySelector('.category-item[data-action="' + action + '"]')?.classList.remove('selected');
-            }
-            await closeLevel1Submenus();
-          });
+      // Submenu close buttons
+      const submenuCloseButtonsL1 = document.querySelectorAll('.submenu-wrapper .submenu-close');
+      const submenuCloseButtonsL2 = document.querySelectorAll('.submenu-wrapper-l2 .submenu-close-l2');
+
+      submenuCloseButtonsL1.forEach(button => {
+        button.addEventListener('click', async () => {
+          const parentSubmenu = button.closest('.slide-submenu');
+          if (parentSubmenu) {
+            const action = parentSubmenu.id.replace('-submenu', '');
+            document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
+          }
+          await closeLevel1Submenus();
         });
+      });
 
-        submenuCloseButtonsL2.forEach(button => {
-          button.addEventListener('click', async () => {
-            const parentSubmenu = button.closest('.slide-submenu-l2');
-            if (parentSubmenu && parentSubmenu.id === 'effects-list-submenu') {
-              document.querySelector('.category-item[data-action="effects"]')?.classList.remove('selected');
-            }
-            await closeLevel2Submenus();
-          });
+      submenuCloseButtonsL2.forEach(button => {
+        button.addEventListener('click', async () => {
+          const parentSubmenu = button.closest('.slide-submenu-l2');
+          if (parentSubmenu && parentSubmenu.id === 'effects-list-submenu') {
+            document.querySelector('.category-item[data-action="effects"]')?.classList.remove('selected');
+          }
+          await closeLevel2Submenus();
         });
+      });
 
-        document.addEventListener('keydown', async (e) => {
-          if (e.key === 'Escape') {
+      // Enhanced keyboard event handling
+      document.addEventListener('keydown', async (e) => {
+        if (e.key === 'Escape') {
+          try {
             const activeModal = document.querySelector('#modal-container .modal.show');
             if (activeModal) {
               WallpaperApp.UI.hideModal(activeModal.id);
-            } else if (WallpaperApp.MenuTools.activePerClipTransitionsPanel) {
+            } else if (WallpaperApp.MenuTools.state.activePerClipTransitionsPanel) {
               await closeActivePerClipTransitionsPanel();
             } else if (document.querySelector('.submenu-wrapper-l2.active')) {
               await closeLevel2Submenus();
@@ -715,18 +1038,17 @@
               const activeL1 = document.querySelector('.submenu-wrapper.active .slide-submenu.active');
               if (activeL1) {
                 const action = activeL1.id.replace('-submenu', '');
-                document.querySelector('.category-item[data-action="' + action + '"]')?.classList.remove('selected');
+                document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
               }
               await closeLevel1Submenus();
             } else if (mainMenu.classList.contains('active')) {
               await closeMainMenu();
             }
+          } catch (error) {
+            console.error('[Escape key handler] Error:', error);
           }
-        });
-      } catch (error) {
-        console.error("[setupMenuSystem] Error during setup:", error);
-        WallpaperApp.UI.showNotification("Error initializing menu system.", "error");
-      }
+        }
+      });
     }
   });
 </script>

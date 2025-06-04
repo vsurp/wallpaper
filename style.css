@@ -26,6 +26,7 @@
  * 4.4. Modals (Container, Structure, Header, Body, Footer)
  * 4.5. Loading Screen
  * 4.6. Contextual Popups (Context Menu, Inline Panel)
+ * 4.7. Tooltips (NEW - Container, Styling, Positioning)
  *
  * 5.  MODULE-SPECIFIC STYLES
  * 5.1. Media Module
@@ -84,7 +85,6 @@
   --section-pulse-duration: 1.2s;
   --panel-animation-time: 200ms;
 
-
   /* Layout Dimensions */
   --menu-width: 300px;
   --submenu-width: 300px; /* L1 and L2 submenus share this width */
@@ -108,7 +108,6 @@
   --submenu-item-l2-padding-y: 0.7rem; /* Specific for L2 items */
   --submenu-item-l2-padding-x: 1rem;
   --submenu-item-l2-font-size: 0.9rem;
-
 
   /* Form Elements */
   --form-input-padding: 8px 12px;
@@ -151,7 +150,7 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.7); } 70% { box-shadow: 0 0 0 8px rgba(var(--primary-color-rgb), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); } }
 @keyframes grain { 0%, 100% { transform: translate(0, 0); } 10% { transform: translate(-1%, -1%); } 20% { transform: translate(1%, 1%); } 30% { transform: translate(2%, -2%); } 40% { transform: translate(-2%, 2%); } 50% { transform: translate(-1%, 1%); } 60% { transform: translate(3%, -1%); } 70% { transform: translate(1%, 3%); } 80% { transform: translate(-3%, 1%); } 90% { transform: translate(1%, -2%); } }
 @keyframes panelOpen { from { opacity: 0; transform: translateY(10px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-
+@keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ========================================================================
    2. LAYOUT & APP STRUCTURE
@@ -171,7 +170,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 .acrylic::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"); opacity: var(--acrylic-noise-opacity); pointer-events: none; z-index: -1; animation: grain 8s steps(10) infinite; border-radius: inherit; }
 .acrylic-light { background-color: rgba(255, 255, 255, 0.1); }
 .acrylic-dark { background-color: var(--menu-background); }
-
 
 /* ========================================================================
    3. NAVIGATION & MENU SYSTEM
@@ -295,8 +293,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
   border-bottom-right-radius: 0;
   color: var(--primary-color);
 }
-/* Actual .parameter-controls-container styling is in section 5.2 */
-
 
 /* ========================================================================
    4. UI COMPONENTS
@@ -457,10 +453,59 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
   border-top: 1px solid var(--panel-border-color);
   margin-top: 10px;
 }
-.inline-panel-button-apply {
-  /* Specific styles if needed, otherwise inherits from .btn */
+
+/* 4.7. Tooltips (NEW - Container, Styling, Positioning)
+   ======================================================================== */
+.tooltip-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
 }
 
+.tooltip {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.3;
+  max-width: 250px;
+  word-wrap: break-word;
+  white-space: normal;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+}
+
+.tooltip.tooltip-below::before {
+  top: -10px;
+  border-top-color: transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.9);
+}
 
 /* ========================================================================
    5. MODULE-SPECIFIC STYLES
@@ -515,6 +560,9 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 .playlist-item-controls-wrap { display: flex; align-items: center; margin-left: auto; gap: 4px; flex-shrink: 0; }
 .playlist-item-delete { padding: 4px !important; font-size: 0.9rem !important; opacity: 0.6; background-color: rgba(255,255,255,0.1); border-radius: 50%; }
 .playlist-item-delete:hover { opacity: 1; background-color: rgba(255,255,255,0.2); color: var(--primary-color); }
+.playlist-item-set-transition-btn { padding: 4px !important; font-size: 0.9rem !important; opacity: 0.6; background-color: rgba(255,255,255,0.1); border-radius: 50%; }
+.playlist-item-set-transition-btn:hover { opacity: 1; background-color: rgba(255,255,255,0.2); color: var(--primary-color); }
+.playlist-item-set-transition-btn.has-transition { opacity: 1; background-color: rgba(var(--primary-color-rgb), 0.2); color: var(--primary-color); }
 #playlist-controls { flex-shrink: 0; display: flex; justify-content: space-between; padding: 8px 0 0 0; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 8px; }
 .playlist-button { flex: 1; font-size: 0.7rem; padding: 6px 8px; text-transform: none; }
 .playlist-button span { margin-right: 4px; font-size: 0.8em; }
@@ -580,13 +628,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
   font-size: 0.9em;
   white-space: nowrap;
 }
-.playlist-item-add-transition svg { /* Legacy, if still used by JS for other buttons */
-  width: 0.8em; height: 0.8em; stroke-width: 3;
-}
-.playlist-item-transition-indicator { /* Legacy, if still used by JS */
-  font-size: 0.65rem; color: var(--secondary-color); margin-bottom: 2px; font-style: italic; line-height: 1;
-}
-
 
 /* 5.1.5. Playback Highlighting (Snake border, etc.) */
 .media-thumbnail.playing-from-here, .playlist-item.playing-from-here { position: relative; overflow: hidden; z-index: 10; }
@@ -596,7 +637,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 .media-thumbnail.playing-from-here::after, .playlist-item.playing-from-here::after { content: ''; position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px; background: var(--background-color); border-radius: calc(var(--btn-border-radius) - 2px); z-index: 0; }
 .playlist-item.playing-from-here .playlist-item-thumbnail, .playlist-item.playing-from-here .playlist-item-info, .playlist-item.playing-from-here .playlist-item-delete { position: relative; z-index: 2; }
 .playlist-item.playing-from-here > * { position: relative; z-index: 2; }
-
 
 /* 5.2. Effects & Transitions Parameter Controls (within L2 submenus)
    ======================================================================== */
@@ -642,7 +682,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 }
 .parameter-controls-container .apply-params-btn { margin-top: 15px; width: 100%; }
 
-
 /* ========================================================================
    6. UTILITY CLASSES
    ======================================================================== */
@@ -653,7 +692,6 @@ button, input[type="button"], input[type="submit"], input[type="reset"] { margin
 .mt-1 { margin-top: 0.5rem; }
 .mb-1 { margin-bottom: 0.5rem; }
 .p-1 { padding: 0.5rem; }
-
 
 /* ========================================================================
    7. RESPONSIVE DESIGN
