@@ -9,16 +9,20 @@
     // Global namespace for the application
     window.WallpaperApp = {
       config: {
-        version: '0.1.9',
+        version: '0.2.2-fixed',
         animationDuration: 300,
-        tooltipDelay: 500, // Reduced from 1000ms for better UX
+        tooltipDelay: 500,
         notificationDuration: 3000
       },
 
       // Module registration system
+      modules: {},
       registerModule(name, module) {
-        console.log('Registered module:', name);
-        this[name] = module;
+        console.log('Registering module:', name);
+        this.modules[name] = module;
+      },
+      getModule(name) {
+        return this.modules[name];
       },
 
       // UI Management Module
@@ -26,440 +30,133 @@
         showNotification(message, type = 'info') {
           const container = document.getElementById('notification-container');
           if (!container) return;
-
-          if (container.children.length === 0) {
-            container.style.visibility = 'visible';
-          }
-
+          container.style.visibility = 'visible';
           const notification = document.createElement('div');
           notification.className = `notification ${type}`;
-          notification.innerHTML = `
-            <div class="notification-content">${message}</div>
-            <button class="btn btn-icon notification-close" aria-label="Close notification">&times;</button>
-          `;
-
+          notification.innerHTML = `<div class="notification-content">${message}</div><button class="btn btn-icon notification-close">&times;</button>`;
           container.appendChild(notification);
-
-          const closeBtn = notification.querySelector('.notification-close');
-          const closeNotification = () => {
+          const close = () => {
             notification.classList.remove('show');
             setTimeout(() => {
-              if (notification.parentElement) {
-                notification.remove();
-                if (container.children.length === 0) {
-                  container.style.visibility = 'hidden';
-                }
-              }
+              notification.remove();
+              if (container.children.length === 0) container.style.visibility = 'hidden';
             }, 300);
           };
-
-          closeBtn.addEventListener('click', closeNotification);
+          notification.querySelector('.notification-close').addEventListener('click', close);
           requestAnimationFrame(() => notification.classList.add('show'));
-          setTimeout(closeNotification, WallpaperApp.config.notificationDuration);
+          setTimeout(close, WallpaperApp.config.notificationDuration);
         },
-
         showModal(options) {
           const { id, title, content, footerButtons } = options;
           const modalContainer = document.getElementById('modal-container');
           if (!modalContainer) return;
-
           const modal = document.createElement('div');
           modal.className = 'modal acrylic acrylic-dark';
           modal.id = id || `modal-${Date.now()}`;
           modal.innerHTML = `
             <div class="modal-header">
               <h2 class="modal-title">${title || 'Modal Title'}</h2>
-              <button class="btn btn-icon modal-close" aria-label="Close modal">&times;</button>
+              <button class="btn btn-icon modal-close">&times;</button>
             </div>
-            <div class="modal-body">
-              ${typeof content === 'string' ? `<p>${content}</p>` : ''}
-            </div>
-            <div class="modal-footer"></div>
-          `;
-
-          if (typeof content !== 'string' && content instanceof HTMLElement) {
-            modal.querySelector('.modal-body').appendChild(content);
-          }
-
+            <div class="modal-body">${typeof content === 'string' ? `<p>${content}</p>` : ''}</div>
+            <div class="modal-footer"></div>`;
+          if (content instanceof HTMLElement) modal.querySelector('.modal-body').appendChild(content);
           const modalFooter = modal.querySelector('.modal-footer');
-          if (footerButtons && footerButtons.length > 0) {
+          if (footerButtons?.length > 0) {
             footerButtons.forEach(btnData => {
               const button = document.createElement('button');
               button.textContent = btnData.text;
               button.className = `btn ${btnData.classes || 'btn-secondary'}`;
-
-              if (btnData.onClick) {
-                button.addEventListener('click', () => {
-                  if (btnData.onClick() !== false) {
-                    WallpaperApp.UI.hideModal(modal.id);
-                  }
-                });
-              } else {
-                button.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
-              }
+              button.addEventListener('click', () => { if (btnData.onClick() !== false) this.hideModal(modal.id); });
               modalFooter.appendChild(button);
             });
           } else {
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
             okButton.className = 'btn btn-primary';
-            okButton.addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
+            okButton.addEventListener('click', () => this.hideModal(modal.id));
             modalFooter.appendChild(okButton);
           }
-
           modalContainer.appendChild(modal);
           modalContainer.style.display = 'flex';
-          modal.querySelector('.modal-close').addEventListener('click', () => WallpaperApp.UI.hideModal(modal.id));
+          modal.querySelector('.modal-close').addEventListener('click', () => this.hideModal(modal.id));
           requestAnimationFrame(() => modal.classList.add('show'));
         },
-
         hideModal(id) {
           const modalContainer = document.getElementById('modal-container');
           const modalToHide = id ? document.getElementById(id) : modalContainer?.querySelector('.modal');
-
           if (modalToHide) {
             modalToHide.classList.remove('show');
             setTimeout(() => {
-              if (modalToHide.parentElement) {
-                modalToHide.parentElement.removeChild(modalToHide);
-                if (modalContainer && modalContainer.children.length === 0) {
-                  modalContainer.style.display = 'none';
-                }
-              }
+              modalToHide.remove();
+              if (modalContainer?.children.length === 0) modalContainer.style.display = 'none';
             }, WallpaperApp.config.animationDuration);
           }
         }
       },
-
-      // Menu Tools Module - Refactored for better separation of concerns
+      // Menu Tools Module
       MenuTools: {
-        state: {
-          openL2Submenu: null,
-          activePerClipTransitionsPanel: null,
-          currentTargetId: null,
-          currentTargetType: null
-        },
-
-        // L2 Target Management
-        setL2Target(id, type) {
-          this.state.currentTargetId = id;
-          this.state.currentTargetType = type;
-          console.log(`[MenuTools] L2 Target Set: ID=${id}, Type=${type}`);
-        },
-
-        // L2 Item Event Handling
-        setupL2ItemListeners(parentElementId) {
-          const parentElement = document.getElementById(parentElementId);
-          if (!parentElement) {
-            console.warn(`[MenuTools.setupL2ItemListeners] Parent element with ID "${parentElementId}" not found.`);
-            return;
-          }
-
-          const l2Items = parentElement.querySelectorAll('.submenu-item-l2');
-          l2Items.forEach(item => {
-            // Remove existing listeners to prevent duplicates
-            if (item._l2ClickHandler) {
-              item.removeEventListener('click', item._l2ClickHandler);
-            }
-
-            const clickHandler = () => this.handleL2ItemClick(item);
-            item.addEventListener('click', clickHandler);
-            item._l2ClickHandler = clickHandler;
+        state: { openL2Submenu: null, activePerClipTransitionsPanel: null, currentTargetId: null, currentTargetType: null },
+        setL2Target(id, type) { this.state.currentTargetId = id; this.state.currentTargetType = type; },
+        setupL2ItemListeners(parentId) {
+          const parent = document.getElementById(parentId);
+          parent?.querySelectorAll('.submenu-item-l2').forEach(item => {
+            if (item._l2ClickHandler) item.removeEventListener('click', item._l2ClickHandler);
+            const handler = () => this.handleL2ItemClick(item);
+            item.addEventListener('click', handler);
+            item._l2ClickHandler = handler;
           });
         },
-
-        // Extracted L2 item click handling logic
         handleL2ItemClick(item) {
           const parentMenu = item.closest('.slide-submenu-l2');
           if (!parentMenu) return;
-
-          const effectId = item.getAttribute('data-effect-id');
-          const itemId = effectId;
+          const itemId = item.getAttribute('data-effect-id');
           const itemType = 'effect';
-
-          // Create or get controls container
-          let controlsContainer = item.nextElementSibling;
-          const isNewControlsContainer = !controlsContainer || !controlsContainer.classList.contains('parameter-controls-container');
-
-          if (isNewControlsContainer) {
-            if (controlsContainer && controlsContainer.classList.contains('parameter-controls-container')) {
-              controlsContainer.remove();
-            }
-            controlsContainer = document.createElement('div');
-            controlsContainer.className = 'parameter-controls-container';
-            item.parentNode.insertBefore(controlsContainer, item.nextSibling);
+          let controls = item.nextElementSibling;
+          if (!controls || !controls.classList.contains('parameter-controls-container')) {
+            controls = document.createElement('div');
+            controls.className = 'parameter-controls-container';
+            item.parentNode.insertBefore(controls, item.nextSibling);
           }
-
-          // Populate parameters
-          if (window.MediaModule && typeof window.MediaModule.getParamsFor === 'function') {
-            console.log(`[MenuTools] Requesting params for ${itemType} "${itemId}" to apply to Target ID: ${this.state.currentTargetId}, Target Type: ${this.state.currentTargetType}`);
-            window.MediaModule.getParamsFor(itemId, itemType, controlsContainer, this.state.currentTargetId, this.state.currentTargetType);
-          } else {
-            console.warn("[MenuTools] MediaModule.getParamsFor function not found.");
-            controlsContainer.innerHTML = '<p style="padding:10px; font-size:0.8em; color: var(--warning-color);">Parameter controls unavailable.</p>';
+          const MediaManager = WallpaperApp.getModule('MediaManager');
+          if (MediaManager?.getParamsFor) {
+            MediaManager.getParamsFor(itemId, itemType, controls, this.state.currentTargetId, this.state.currentTargetType);
           }
-
-          // Handle expansion state
-          this.toggleL2ItemExpansion(item, controlsContainer, parentMenu);
+          this.toggleL2ItemExpansion(item, controls, parentMenu);
         },
-
-        // Toggle L2 item expansion with proper state management
-        toggleL2ItemExpansion(item, controlsContainer, parentMenu) {
-          const isCurrentlyVisible = controlsContainer.classList.contains('visible') && item.classList.contains('expanded');
-
-          // Collapse all other items in the same menu
-          parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
-            if (container !== controlsContainer) {
-              container.classList.remove('visible');
-              container.style.maxHeight = '0px';
-              const prevSibling = container.previousElementSibling;
-              if (prevSibling && prevSibling.classList.contains('submenu-item-l2')) {
-                prevSibling.classList.remove('expanded');
-              }
-            }
+        toggleL2ItemExpansion(item, controls, parentMenu) {
+          const isVisible = controls.classList.contains('visible');
+          parentMenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {
+            if (c !== controls) { c.classList.remove('visible'); c.style.maxHeight = '0px'; c.previousElementSibling?.classList.remove('expanded'); }
           });
-
-          parentMenu.querySelectorAll('.submenu-item-l2.expanded').forEach(otherItem => {
-            if (otherItem !== item) otherItem.classList.remove('expanded');
-          });
-
-          // Toggle current item
-          if (isCurrentlyVisible) {
-            controlsContainer.classList.remove('visible');
-            controlsContainer.style.maxHeight = '0px';
-            item.classList.remove('expanded');
-          } else {
-            controlsContainer.classList.add('visible');
-            requestAnimationFrame(() => {
-              controlsContainer.style.maxHeight = controlsContainer.scrollHeight + "px";
-            });
-            item.classList.add('expanded');
-          }
+          item.classList.toggle('expanded', !isVisible);
+          controls.classList.toggle('visible', !isVisible);
+          controls.style.maxHeight = !isVisible ? controls.scrollHeight + "px" : '0px';
         },
-
-        // Per-clip transitions panel management
-        openPerClipTransitionsPanel(playlistItemIndex, clipName) {
+        openPerClipTransitionsPanel(index, clipName) {
           const panel = document.getElementById('per-clip-transitions-panel');
-          const panelWrapper = document.getElementById('slide-left-panel-wrapper');
-          const importMediaSubmenu = document.getElementById('import-media-submenu');
-
-          if (!panel || !panelWrapper || !importMediaSubmenu) {
-            console.error('[MenuTools.openPerClipTransitionsPanel] Panel elements not found.');
-            return;
-          }
-
-          // Close any existing panel
-          if (this.state.activePerClipTransitionsPanel && this.state.activePerClipTransitionsPanel !== panel) {
-            this.closePerClipTransitionsPanel();
-          }
-
-          // Update panel title
-          const panelHeaderTitle = panel.querySelector('.panel-header-title');
-          if (panelHeaderTitle) panelHeaderTitle.textContent = `Transitions for: ${clipName}`;
-
-          // Populate transitions
-          if (window.MediaModule && typeof window.MediaModule.populatePerClipTransitions === 'function') {
-            window.MediaModule.populatePerClipTransitions(playlistItemIndex);
-          }
-
-          // Position and show panel
-          const importMediaSubmenuWidth = importMediaSubmenu.offsetWidth;
-          panelWrapper.style.right = `calc(var(--menu-width) + ${importMediaSubmenuWidth}px)`;
-          panelWrapper.style.display = 'block';
-
-          requestAnimationFrame(() => {
-            panelWrapper.classList.add('active');
-          });
-
+          const wrapper = document.getElementById('slide-left-panel-wrapper');
+          const importSubmenu = document.getElementById('import-media-submenu');
+          if (!panel || !wrapper || !importSubmenu) return;
+          if (this.state.activePerClipTransitionsPanel) this.closePerClipTransitionsPanel();
+          panel.querySelector('.panel-header-title').textContent = `Transitions for: ${clipName}`;
+          const MediaManager = WallpaperApp.getModule('MediaManager');
+          if (MediaManager?.populatePerClipTransitions) MediaManager.populatePerClipTransitions(index);
+          wrapper.style.right = `calc(var(--menu-width) + ${importSubmenu.offsetWidth}px)`;
+          wrapper.style.display = 'block';
+          requestAnimationFrame(() => wrapper.classList.add('active'));
           this.state.activePerClipTransitionsPanel = panel;
           document.getElementById('main-menu').classList.add('main-menu-slide-left-active');
         },
-
         closePerClipTransitionsPanel() {
-          const panelWrapper = document.getElementById('slide-left-panel-wrapper');
-
-          if (!this.state.activePerClipTransitionsPanel || !panelWrapper) {
-            if (this.state.activePerClipTransitionsPanel) this.state.activePerClipTransitionsPanel = null;
-            document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
-            if (panelWrapper) panelWrapper.style.display = 'none';
-            return;
-          }
-
+          const wrapper = document.getElementById('slide-left-panel-wrapper');
+          if (!this.state.activePerClipTransitionsPanel || !wrapper) return;
           this.state.activePerClipTransitionsPanel = null;
           document.getElementById('main-menu').classList.remove('main-menu-slide-left-active');
-
-          if (panelWrapper.classList.contains('active')) {
-            panelWrapper.classList.remove('active');
-
-            const transitionEndHandler = () => {
-              if (!panelWrapper.classList.contains('active')) {
-                panelWrapper.style.display = 'none';
-              }
-              panelWrapper.removeEventListener('transitionend', transitionEndHandler);
-            };
-            panelWrapper.addEventListener('transitionend', transitionEndHandler);
-
-            // Fallback timeout
-            setTimeout(() => {
-              if (!panelWrapper.classList.contains('active')) {
-                panelWrapper.style.display = 'none';
-              }
-              panelWrapper.removeEventListener('transitionend', transitionEndHandler);
-            }, WallpaperApp.config.animationDuration + 70);
-          } else {
-            panelWrapper.style.display = 'none';
-          }
+          wrapper.classList.remove('active');
+          setTimeout(() => { if (!wrapper.classList.contains('active')) wrapper.style.display = 'none'; }, 350);
         }
       },
-
-      // Tooltip System - FIXED IMPLEMENTATION
-      Tooltip: {
-        currentTooltip: null,
-        showTimeout: null,
-        hideTimeout: null,
-
-        init() {
-          this.createTooltipContainer();
-          this.setupEventListeners();
-        },
-
-        createTooltipContainer() {
-          let container = document.getElementById('tooltip-container');
-          if (!container) {
-            container = document.createElement('div');
-            container.id = 'tooltip-container';
-            container.className = 'tooltip-container';
-            document.body.appendChild(container);
-          }
-        },
-
-        setupEventListeners() {
-          // Use event delegation for better performance
-          document.addEventListener('mouseenter', (e) => {
-            const tooltipElement = e.target.closest('[data-tooltip]');
-            if (tooltipElement) {
-              this.scheduleShow(tooltipElement);
-            }
-          }, true);
-
-          document.addEventListener('mouseleave', (e) => {
-            const tooltipElement = e.target.closest('[data-tooltip]');
-            if (tooltipElement && tooltipElement === this.currentElement) {
-              this.scheduleHide();
-            }
-          }, true);
-
-          // Hide tooltip on scroll
-          document.addEventListener('scroll', () => this.hide(), true);
-
-          // Hide tooltip on window resize
-          window.addEventListener('resize', () => this.hide());
-        },
-
-        scheduleShow(element) {
-          this.cancelScheduledHide();
-          this.cancelScheduledShow();
-
-          this.currentElement = element;
-          this.showTimeout = setTimeout(() => {
-            this.show(element);
-          }, WallpaperApp.config.tooltipDelay);
-        },
-
-        scheduleHide() {
-          this.cancelScheduledShow();
-          this.hideTimeout = setTimeout(() => {
-            this.hide();
-          }, 100);
-        },
-
-        cancelScheduledShow() {
-          if (this.showTimeout) {
-            clearTimeout(this.showTimeout);
-            this.showTimeout = null;
-          }
-        },
-
-        cancelScheduledHide() {
-          if (this.hideTimeout) {
-            clearTimeout(this.hideTimeout);
-            this.hideTimeout = null;
-          }
-        },
-
-        show(element) {
-          const text = element.getAttribute('data-tooltip');
-          if (!text) return;
-
-          this.hide(); // Hide any existing tooltip
-
-          const container = document.getElementById('tooltip-container');
-          if (!container) return;
-
-          const tooltip = document.createElement('div');
-          tooltip.className = 'tooltip';
-          tooltip.textContent = text;
-
-          container.appendChild(tooltip);
-          this.currentTooltip = tooltip;
-
-          // Force layout calculation
-          tooltip.offsetHeight;
-
-          // Position tooltip
-          this.position(tooltip, element);
-
-          // Show with animation
-          requestAnimationFrame(() => {
-            tooltip.classList.add('show');
-          });
-        },
-
-        position(tooltip, element) {
-          const elementRect = element.getBoundingClientRect();
-          const tooltipRect = tooltip.getBoundingClientRect();
-          const spacing = 8;
-
-          // Default position above element
-          let left = elementRect.left + (elementRect.width / 2) - (tooltipRect.width / 2);
-          let top = elementRect.top - tooltipRect.height - spacing;
-
-          // Horizontal boundary checks
-          const minLeft = spacing;
-          const maxLeft = window.innerWidth - tooltipRect.width - spacing;
-          left = Math.max(minLeft, Math.min(left, maxLeft));
-
-          // Vertical boundary check - position below if not enough space above
-          if (top < spacing) {
-            top = elementRect.bottom + spacing;
-            tooltip.classList.add('tooltip-below');
-          }
-
-          tooltip.style.left = `${left}px`;
-          tooltip.style.top = `${top}px`;
-        },
-
-        hide() {
-          this.cancelScheduledShow();
-          this.cancelScheduledHide();
-
-          if (this.currentTooltip) {
-            this.currentTooltip.classList.remove('show');
-            const tooltipToRemove = this.currentTooltip;
-
-            setTimeout(() => {
-              if (tooltipToRemove && tooltipToRemove.parentNode) {
-                tooltipToRemove.parentNode.removeChild(tooltipToRemove);
-              }
-            }, 200); // Match CSS transition duration
-
-            this.currentTooltip = null;
-            this.currentElement = null;
-          }
-        }
-      },
-
-      Utils: {}
     };
   </script>
 </head>
@@ -498,7 +195,7 @@
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v0.1.9</div>
+      <div class="version-info">v0.2.2</div>
     </div>
   </nav>
 
@@ -506,9 +203,9 @@
     <div id="import-media-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header">
         <h1>MEDIA PLAYER</h1>
-        <button class="btn btn-icon submenu-close" aria-label="Close submenu">&times;</button>
+        <button class="btn btn-icon submenu-close">&times;</button>
       </div>
-      <div class="menu-content"></div>
+      <div class="menu-content"><!-- Filled by media-manager.js --></div>
       <div class="menu-footer"></div>
     </div>
 
@@ -516,51 +213,32 @@
       <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
         <button class="submenu-item" data-action="fl-studio-connection" data-tooltip="Connect to FL Studio for theme synchronization">FL STUDIO</button>
-        <button class="submenu-item" data-action="ableton-connection" data-tooltip="Connect to Ableton Live">ABLETON LIVE</button>
-        <button class="submenu-item" data-action="logic-connection" data-tooltip="Connect to Logic Pro">LOGIC PRO</button>
-        <button class="submenu-item" data-action="pro-tools-connection" data-tooltip="Connect to Pro Tools">PRO TOOLS</button>
-        <button class="submenu-item" data-action="custom-daw-connection" data-tooltip="Configure custom DAW connection">CUSTOM DAW</button>
-      </div></div><div class="menu-footer"></div>
+      </div></div>
     </div>
 
     <div id="performance-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>PERFORMANCE</h1><button class="btn btn-icon submenu-close">&times;</button></div>
-      <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="perf-opt1" data-tooltip="Optimize rendering performance">OPTIMIZATION 1</button>
-        <button class="submenu-item" data-action="perf-opt2" data-tooltip="Reduce memory usage">OPTIMIZATION 2</button>
-      </div></div><div class="menu-footer"></div>
+      <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
 
     <div id="extra-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>EXTRA</h1><button class="btn btn-icon submenu-close">&times;</button></div>
-      <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="visualizer-styles" data-tooltip="Choose from different visualizer styles">VISUALIZER STYLES</button>
-        <button class="submenu-item" data-action="clock-display" data-tooltip="Show or hide clock display">CLOCK DISPLAY</button>
-      </div></div><div class="menu-footer"></div>
+      <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
 
     <div id="config-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>CONFIG SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
-      <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="startup-behavior" data-tooltip="Configure how the app starts">STARTUP BEHAVIOR</button>
-        <button class="submenu-item" data-action="auto-save" data-tooltip="Enable or disable automatic saving">AUTO SAVE</button>
-      </div></div><div class="menu-footer"></div>
+      <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
 
     <div id="menu-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>MENU SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
-      <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="menu-position" data-tooltip="Change menu position on screen">MENU POSITION</button>
-        <button class="submenu-item" data-action="menu-opacity" data-tooltip="Adjust menu transparency">MENU OPACITY</button>
-      </div></div><div class="menu-footer"></div>
+      <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
 
     <div id="about-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>ABOUT</h1><button class="btn btn-icon submenu-close">&times;</button></div>
-      <div class="menu-content"><div class="menu-section">
-        <button class="submenu-item" data-action="app-info" data-tooltip="Version and system information">APP INFORMATION</button>
-        <button class="submenu-item" data-action="credits" data-tooltip="Development credits and acknowledgments">CREDITS</button>
-      </div></div><div class="menu-footer"></div>
+      <div class="menu-content"><div class="menu-section"><p>App by vsurp</p></div></div>
     </div>
   </div>
 
@@ -568,12 +246,11 @@
     <div id="effects-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
       <div class="menu-header">
         <h1>EFFECTS LIST</h1>
-        <button class="btn btn-icon submenu-close-l2" aria-label="Close L2 submenu">&times;</button>
+        <button class="btn btn-icon submenu-close-l2">&times;</button>
       </div>
       <div class="menu-content">
-        <div class="menu-section"></div>
+        <div class="menu-section"><!-- Filled by script --></div>
       </div>
-      <div class="menu-footer"></div>
     </div>
   </div>
 
@@ -581,12 +258,11 @@
     <div id="per-clip-transitions-panel" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header">
         <h1 class="panel-header-title">TRANSITIONS FOR CLIP</h1>
-        <button class="btn btn-icon panel-close" aria-label="Close transitions panel">&times;</button>
+        <button class="btn btn-icon panel-close">&times;</button>
       </div>
       <div class="menu-content">
         <div class="menu-section" id="per-clip-transitions-list"></div>
       </div>
-      <div class="menu-footer"></div>
     </div>
   </div>
 
@@ -596,347 +272,68 @@
   <div id="inline-panel-container" class="inline-panel"></div>
 </div>
 
+<!-- ** FIX: Load scripts with defer to ensure execution order ** -->
+<script src="player-engine.js" defer></script>
+<script src="media-manager.js" defer></script>
+
 <script>
+  // This script will also be deferred by the browser, running after the two above.
   document.addEventListener('DOMContentLoaded', function() {
     try {
-      // Initialize tooltip system
-      WallpaperApp.Tooltip.init();
+      console.log("DOM fully loaded. Initializing application...");
 
-      // Show ready notification
-      WallpaperApp.UI.showNotification('FL Studio Wallpaper App ready!', 'success');
+      // With 'defer', PlayerEngine and MediaManager are guaranteed to be defined.
+      if (typeof PlayerEngine === 'undefined' || typeof MediaManager === 'undefined') {
+        throw new Error("A core module (PlayerEngine or MediaManager) failed to load.");
+      }
 
-      // Initialize menu system
+      // 1. Register modules so they can be accessed globally via WallpaperApp.getModule
+      WallpaperApp.registerModule('PlayerEngine', PlayerEngine);
+      WallpaperApp.registerModule('MediaManager', MediaManager);
+
+      // 2. Initialize the main manager module. It will handle initializing the player engine.
+      MediaManager.init();
+
+      // 3. Initialize UI components
       const menuSystem = setupMenuSystem();
       if (!menuSystem.success) {
         throw new Error('Menu system initialization failed');
       }
 
-      // Initialize effects submenu
-      if (window.MediaModule && typeof window.MediaModule.getAvailableEffects === 'function') {
-        populateL2Submenu('effects-list-submenu', window.MediaModule.getAvailableEffects(), 'effect');
+      const MediaManagerModule = WallpaperApp.getModule('MediaManager');
+      if (MediaManagerModule && typeof MediaManagerModule.getAvailableEffects === 'function') {
+        populateL2Submenu('effects-list-submenu', MediaManagerModule.getAvailableEffects(), 'effect');
         WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
       }
 
-      // Setup per-clip transitions panel close button
       const perClipPanelCloseBtn = document.querySelector('#per-clip-transitions-panel .panel-close');
       if (perClipPanelCloseBtn) {
         perClipPanelCloseBtn.addEventListener('click', () => {
           WallpaperApp.MenuTools.closePerClipTransitionsPanel();
         });
       }
-
+      console.log("Application initialization complete.");
     } catch (error) {
       console.error('[App Initialization] Critical error:', error);
-      WallpaperApp.UI.showNotification('Failed to initialize application. Check console for details.', 'error');
+      WallpaperApp.UI.showNotification('Failed to initialize application. Check console.', 'error');
     }
 
-    // Populate L2 submenu helper function
     function populateL2Submenu(submenuId, items, type) {
-      try {
-        const submenu = document.getElementById(submenuId);
-        if (!submenu) {
-          console.error(`[populateL2Submenu] Submenu with ID "${submenuId}" not found.`);
-          return;
-        }
-
-        const menuContentSection = submenu.querySelector('.menu-content .menu-section');
-        if (!menuContentSection) {
-          console.error(`[populateL2Submenu] Menu content section not found in submenu "${submenuId}".`);
-          return;
-        }
-
-        menuContentSection.innerHTML = '';
-
-        items.forEach(item => {
-          const button = document.createElement('button');
-          button.className = 'submenu-item-l2';
-          button.textContent = item.name;
-          button.setAttribute('data-tooltip', `Apply ${item.name} effect to selected media`);
-
-          if (type === 'effect') {
-            button.setAttribute('data-effect-id', item.id);
-          }
-
-          menuContentSection.appendChild(button);
-        });
-      } catch (error) {
-        console.error(`[populateL2Submenu] Error populating submenu "${submenuId}":`, error);
-      }
+      const submenu = document.getElementById(submenuId);
+      const menuContentSection = submenu?.querySelector('.menu-content .menu-section');
+      if (!menuContentSection) return;
+      menuContentSection.innerHTML = '';
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.className = 'submenu-item-l2';
+        button.textContent = item.name;
+        button.setAttribute('data-tooltip', `Apply ${item.name} effect`);
+        if (type === 'effect') button.setAttribute('data-effect-id', item.id);
+        menuContentSection.appendChild(button);
+      });
     }
 
-    // Enhanced menu system setup with better error handling and state management
     function setupMenuSystem() {
-      try {
-        const elements = getMenuElements();
-        if (!elements.success) {
-          return { success: false, error: 'Failed to get menu elements' };
-        }
-
-        const { menuTrigger, mainMenu, menuClose, categoryItems, submenuWrapperL1, submenuWrapperL2 } = elements;
-
-        const menuState = {
-          animationInProgress: false,
-          currentL1Submenu: null,
-          currentL2Submenu: null
-        };
-
-        const menuAnimationTimeMs = WallpaperApp.config.animationDuration;
-
-        // Enhanced animation helper with promise support
-        function afterAnimation(element, callback) {
-          setTimeout(() => {
-            if (callback) callback();
-          }, menuAnimationTimeMs + 50);
-        }
-
-        // Improved per-clip transitions panel management
-        async function closeActivePerClipTransitionsPanel() {
-          WallpaperApp.MenuTools.closePerClipTransitionsPanel();
-        }
-
-        // Enhanced L2 submenu closure with state tracking
-        async function closeLevel2Submenus(keepL1Open = false) {
-          return new Promise(resolve => {
-            if (!submenuWrapperL2) {
-              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
-              resolve();
-              return;
-            }
-
-            const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
-            if (activeL2Wrapper) {
-              activeL2Wrapper.querySelectorAll('.slide-submenu-l2.active').forEach(submenu => {
-                submenu.classList.remove('active');
-                submenu.querySelectorAll('.parameter-controls-container.visible').forEach(container => {
-                  container.classList.remove('visible');
-                  container.style.maxHeight = '0px';
-                });
-                submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(item => item.classList.remove('expanded'));
-              });
-
-              activeL2Wrapper.classList.remove('active');
-              menuState.currentL2Submenu = null;
-
-              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
-
-              afterAnimation(activeL2Wrapper, () => {
-                if (!activeL2Wrapper.classList.contains('active')) {
-                  activeL2Wrapper.style.display = 'none';
-                }
-                resolve();
-              });
-            } else {
-              if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
-              resolve();
-            }
-          });
-        }
-
-        // Enhanced L1 submenu closure with state tracking
-        async function closeLevel1Submenus(keepMainMenuOpen = false) {
-          return new Promise(async resolve => {
-            await closeLevel2Submenus(true);
-            await closeActivePerClipTransitionsPanel();
-
-            if (!submenuWrapperL1) {
-              resolve();
-              return;
-            }
-
-            const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
-            if (activeL1Wrapper) {
-              activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
-              activeL1Wrapper.classList.remove('active');
-              menuState.currentL1Submenu = null;
-
-              if (!keepMainMenuOpen) {
-                mainMenu.classList.remove('main-menu-submenu-active');
-                mainMenu.classList.remove('main-menu-l2-active');
-                mainMenu.classList.remove('main-menu-slide-left-active');
-              }
-
-              afterAnimation(activeL1Wrapper, () => {
-                if (!activeL1Wrapper.classList.contains('active')) {
-                  activeL1Wrapper.style.display = 'none';
-                }
-                resolve();
-              });
-            } else {
-              if (!keepMainMenuOpen) {
-                mainMenu.classList.remove('main-menu-submenu-active');
-                mainMenu.classList.remove('main-menu-l2-active');
-                mainMenu.classList.remove('main-menu-slide-left-active');
-              }
-              resolve();
-            }
-          });
-        }
-
-        // Enhanced main menu closure
-        async function closeMainMenu() {
-          return new Promise(async resolve => {
-            if (menuState.animationInProgress) {
-              resolve();
-              return;
-            }
-
-            menuState.animationInProgress = true;
-
-            try {
-              await closeLevel1Submenus();
-
-              if (mainMenu.classList.contains('active')) {
-                mainMenu.classList.remove('active');
-                afterAnimation(mainMenu, () => {
-                  menuState.animationInProgress = false;
-                  resolve();
-                });
-              } else {
-                menuState.animationInProgress = false;
-                resolve();
-              }
-            } catch (error) {
-              console.error('[closeMainMenu] Error:', error);
-              menuState.animationInProgress = false;
-              resolve();
-            }
-          });
-        }
-
-        // Enhanced L1 submenu opening with state management
-        async function openL1Submenu(targetL1Submenu) {
-          return new Promise(async resolve => {
-            if (!targetL1Submenu || !submenuWrapperL1) {
-              resolve(false);
-              return;
-            }
-
-            if (menuState.animationInProgress) {
-              resolve(false);
-              return;
-            }
-
-            menuState.animationInProgress = true;
-
-            try {
-              await closeLevel2Submenus(true);
-              await closeActivePerClipTransitionsPanel();
-
-              const currentActiveL1Submenu = submenuWrapperL1.querySelector('.slide-submenu.active');
-
-              const openLogic = () => {
-                targetL1Submenu.classList.add('active');
-                submenuWrapperL1.style.display = 'block';
-                menuState.currentL1Submenu = targetL1Submenu;
-
-                requestAnimationFrame(() => {
-                  submenuWrapperL1.classList.add('active');
-                  mainMenu.classList.add('main-menu-submenu-active');
-                  mainMenu.classList.remove('main-menu-l2-active');
-                  mainMenu.classList.remove('main-menu-slide-left-active');
-
-                  afterAnimation(submenuWrapperL1, () => {
-                    menuState.animationInProgress = false;
-                    resolve(true);
-                  });
-                });
-              };
-
-              if (currentActiveL1Submenu && currentActiveL1Submenu !== targetL1Submenu) {
-                currentActiveL1Submenu.classList.remove('active');
-                afterAnimation(currentActiveL1Submenu, openLogic);
-              } else if (!currentActiveL1Submenu || currentActiveL1Submenu !== targetL1Submenu) {
-                openLogic();
-              } else if (currentActiveL1Submenu === targetL1Submenu) {
-                if (!submenuWrapperL1.classList.contains('active')) {
-                  openLogic();
-                } else {
-                  mainMenu.classList.add('main-menu-submenu-active');
-                  mainMenu.classList.remove('main-menu-l2-active');
-                  mainMenu.classList.remove('main-menu-slide-left-active');
-                  menuState.animationInProgress = false;
-                  resolve(true);
-                }
-              }
-            } catch (error) {
-              console.error('[openL1Submenu] Error:', error);
-              menuState.animationInProgress = false;
-              resolve(false);
-            }
-          });
-        }
-
-        // Enhanced L2 submenu opening
-        WallpaperApp.MenuTools.openL2Submenu = async function(submenuIdL2) {
-          const submenuL2 = document.getElementById(submenuIdL2);
-          if (!submenuL2 || !submenuWrapperL2) return;
-
-          if (menuState.animationInProgress) return;
-
-          menuState.animationInProgress = true;
-
-          try {
-            await closeActivePerClipTransitionsPanel();
-
-            const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
-            if (activeL1Wrapper) {
-              activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(submenu => submenu.classList.remove('active'));
-              activeL1Wrapper.classList.remove('active');
-              afterAnimation(activeL1Wrapper, () => {
-                if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
-              });
-            }
-
-            mainMenu.classList.remove('main-menu-submenu-active');
-            mainMenu.classList.remove('main-menu-slide-left-active');
-
-            const currentActiveL2Wrapper = submenuWrapperL2;
-            const currentActiveL2Submenu = currentActiveL2Wrapper.querySelector('.slide-submenu-l2.active');
-
-            const openTargetL2 = () => {
-              submenuL2.classList.add('active');
-              currentActiveL2Wrapper.style.display = 'block';
-              menuState.currentL2Submenu = submenuL2;
-
-              requestAnimationFrame(() => {
-                currentActiveL2Wrapper.classList.add('active');
-                mainMenu.classList.add('main-menu-l2-active');
-                WallpaperApp.MenuTools.setupL2ItemListeners(submenuIdL2);
-                menuState.animationInProgress = false;
-              });
-            };
-
-            if (currentActiveL2Submenu && currentActiveL2Submenu !== submenuL2) {
-              currentActiveL2Submenu.classList.remove('active');
-              currentActiveL2Submenu.querySelectorAll('.parameter-controls-container.visible').forEach(c => {
-                c.classList.remove('visible');
-                c.style.maxHeight = '0px';
-              });
-              currentActiveL2Submenu.querySelectorAll('.submenu-item-l2.expanded').forEach(i => i.classList.remove('expanded'));
-              afterAnimation(currentActiveL2Submenu, openTargetL2);
-            } else if (!currentActiveL2Submenu || currentActiveL2Submenu !== submenuL2) {
-              openTargetL2();
-            }
-          } catch (error) {
-            console.error('[openL2Submenu] Error:', error);
-            menuState.animationInProgress = false;
-          }
-        };
-
-        // Event listeners setup
-        setupEventListeners(menuTrigger, mainMenu, menuClose, categoryItems, closeMainMenu, closeLevel1Submenus, closeLevel2Submenus, openL1Submenu, closeActivePerClipTransitionsPanel);
-
-        return { success: true };
-
-      } catch (error) {
-        console.error("[setupMenuSystem] Error during setup:", error);
-        WallpaperApp.UI.showNotification("Error initializing menu system.", "error");
-        return { success: false, error: error.message };
-      }
-    }
-
-    // Extract element gathering into separate function for better organization
-    function getMenuElements() {
       try {
         const menuTrigger = document.getElementById('menu-trigger');
         const mainMenu = document.getElementById('main-menu');
@@ -946,161 +343,123 @@
         const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
 
         if (!mainMenu || !submenuWrapperL1 || !submenuWrapperL2) {
-          console.error("[getMenuElements] Critical menu elements not found.");
+          console.error("Critical menu elements not found.");
           return { success: false };
         }
 
-        return {
-          success: true,
-          menuTrigger,
-          mainMenu,
-          menuClose,
-          categoryItems,
-          submenuWrapperL1,
-          submenuWrapperL2
-        };
-      } catch (error) {
-        console.error("[getMenuElements] Error:", error);
+        const menuState = { animationInProgress: false };
+        const afterAnimation = (callback) => setTimeout(callback, WallpaperApp.config.animationDuration + 50);
+
+        async function closeLevel2Submenus(keepL1Open = false) {
+          const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
+          if (activeL2Wrapper) {
+            activeL2Wrapper.classList.remove('active');
+            if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
+            return new Promise(resolve => afterAnimation(() => {
+              if (!activeL2Wrapper.classList.contains('active')) activeL2Wrapper.style.display = 'none';
+              resolve();
+            }));
+          }
+          return Promise.resolve();
+        }
+
+        async function closeLevel1Submenus(keepMainMenuOpen = false) {
+          await closeLevel2Submenus(true);
+          await WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+          const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
+          if (activeL1Wrapper) {
+            activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(s => s.classList.remove('active'));
+            activeL1Wrapper.classList.remove('active');
+            if (!keepMainMenuOpen) mainMenu.classList.remove('main-menu-submenu-active', 'main-menu-l2-active', 'main-menu-slide-left-active');
+            return new Promise(resolve => afterAnimation(() => {
+              if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
+              resolve();
+            }));
+          }
+          return Promise.resolve();
+        }
+
+        async function closeMainMenu() {
+          if (menuState.animationInProgress) return;
+          menuState.animationInProgress = true;
+          await closeLevel1Submenus();
+          mainMenu.classList.remove('active');
+          afterAnimation(() => menuState.animationInProgress = false);
+        }
+
+        menuTrigger?.addEventListener('click', () => !mainMenu.classList.contains('active') ? mainMenu.classList.add('active') : closeMainMenu());
+        menuClose?.addEventListener('click', closeMainMenu);
+
+        categoryItems.forEach(item => {
+          item.addEventListener('click', async () => {
+            const action = item.getAttribute('data-action');
+            const isEffects = action === 'effects';
+            const targetSubmenuId = isEffects ? 'effects-list-submenu' : action + '-submenu';
+            const targetSubmenu = document.getElementById(targetSubmenuId);
+
+            if (item.classList.contains('selected')) {
+              item.classList.remove('selected');
+              isEffects ? await closeLevel2Submenus() : await closeLevel1Submenus();
+            } else {
+              categoryItems.forEach(i => i.classList.remove('selected'));
+              item.classList.add('selected');
+
+              if (isEffects) {
+                await closeLevel1Submenus(true);
+                submenuWrapperL2.style.display = 'block';
+                requestAnimationFrame(() => {
+                  mainMenu.classList.add('main-menu-l2-active');
+                  submenuWrapperL2.classList.add('active');
+                  targetSubmenu.classList.add('active');
+                });
+              } else if (targetSubmenu) {
+                await closeLevel1Submenus(true);
+                submenuWrapperL1.style.display = 'block';
+                const activeSub = submenuWrapperL1.querySelector('.slide-submenu.active');
+                if(activeSub) activeSub.classList.remove('active');
+
+                requestAnimationFrame(() => {
+                  mainMenu.classList.add('main-menu-submenu-active');
+                  submenuWrapperL1.classList.add('active');
+                  targetSubmenu.classList.add('active');
+                });
+              } else {
+                await closeLevel1Submenus(true);
+              }
+            }
+          });
+        });
+
+        document.querySelectorAll('.submenu-wrapper .submenu-close, .submenu-wrapper-l2 .submenu-close-l2').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const parentSubmenu = btn.closest('.slide-submenu, .slide-submenu-l2');
+            if (parentSubmenu) {
+              const action = parentSubmenu.id.replace('-submenu', '').replace('-list', '');
+              document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
+            }
+            if (btn.classList.contains('submenu-close-l2')) await closeLevel2Submenus();
+            else await closeLevel1Submenus();
+          });
+        });
+
+        document.addEventListener('keydown', async (e) => {
+          if (e.key === 'Escape') {
+            if (document.querySelector('.modal.show')) WallpaperApp.UI.hideModal();
+            else if (WallpaperApp.MenuTools.state.activePerClipTransitionsPanel) await WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+            else if (document.querySelector('.submenu-wrapper-l2.active')) await closeLevel2Submenus();
+            else if (document.querySelector('.submenu-wrapper.active')) await closeLevel1Submenus();
+            else if (mainMenu.classList.contains('active')) await closeMainMenu();
+          }
+        });
+
+        return { success: true };
+      } catch(e) {
+        console.error("MenuSystem init failed:", e);
         return { success: false };
       }
     }
-
-    // Extract event listeners setup for better organization
-    function setupEventListeners(menuTrigger, mainMenu, menuClose, categoryItems, closeMainMenu, closeLevel1Submenus, closeLevel2Submenus, openL1Submenu, closeActivePerClipTransitionsPanel) {
-      // Menu trigger events
-      if (menuTrigger) {
-        menuTrigger.addEventListener('click', async () => {
-          if (mainMenu.classList.contains('active')) {
-            await closeMainMenu();
-          } else {
-            mainMenu.classList.add('active');
-          }
-        });
-      }
-
-      // Menu close button
-      if (menuClose) {
-        menuClose.addEventListener('click', closeMainMenu);
-      }
-
-      // Category item click handlers with enhanced state management
-      categoryItems.forEach(item => {
-        item.addEventListener('click', async () => {
-          try {
-            const action = item.getAttribute('data-action');
-            const isEffectsAction = action === 'effects';
-
-            const isCurrentlySelected = item.classList.contains('selected');
-            let associatedMenuIsOpen = false;
-
-            // Check if associated menu is currently open
-            if (isEffectsAction) {
-              const effectsMenu = document.getElementById('effects-list-submenu');
-              if (effectsMenu && effectsMenu.classList.contains('active') && effectsMenu.closest('.submenu-wrapper-l2.active')) {
-                associatedMenuIsOpen = true;
-              }
-            } else {
-              const targetL1Submenu = document.getElementById(action + '-submenu');
-              if (targetL1Submenu && targetL1Submenu.classList.contains('active') && targetL1Submenu.closest('.submenu-wrapper.active')) {
-                associatedMenuIsOpen = true;
-              }
-            }
-
-            // Toggle logic
-            if (isCurrentlySelected && associatedMenuIsOpen) {
-              item.classList.remove('selected');
-              if (isEffectsAction) {
-                await closeLevel2Submenus();
-              } else {
-                await closeLevel1Submenus();
-              }
-              WallpaperApp.MenuTools.setL2Target(null, null);
-            } else {
-              // Clear all selections first
-              categoryItems.forEach(ci => ci.classList.remove('selected'));
-              item.classList.add('selected');
-
-              if (isEffectsAction) {
-                await closeLevel1Submenus(true);
-                await closeActivePerClipTransitionsPanel();
-                WallpaperApp.MenuTools.openL2Submenu('effects-list-submenu');
-              } else {
-                await closeLevel2Submenus(true);
-                await closeActivePerClipTransitionsPanel();
-                const targetL1Submenu = document.getElementById(action + '-submenu');
-                if (targetL1Submenu) {
-                  await openL1Submenu(targetL1Submenu);
-                } else {
-                  await closeLevel1Submenus(true);
-                  item.classList.remove('selected');
-                }
-              }
-
-              if (!isEffectsAction) {
-                WallpaperApp.MenuTools.setL2Target(null, null);
-              }
-            }
-          } catch (error) {
-            console.error('[Category item click] Error:', error);
-          }
-        });
-      });
-
-      // Submenu close buttons
-      const submenuCloseButtonsL1 = document.querySelectorAll('.submenu-wrapper .submenu-close');
-      const submenuCloseButtonsL2 = document.querySelectorAll('.submenu-wrapper-l2 .submenu-close-l2');
-
-      submenuCloseButtonsL1.forEach(button => {
-        button.addEventListener('click', async () => {
-          const parentSubmenu = button.closest('.slide-submenu');
-          if (parentSubmenu) {
-            const action = parentSubmenu.id.replace('-submenu', '');
-            document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
-          }
-          await closeLevel1Submenus();
-        });
-      });
-
-      submenuCloseButtonsL2.forEach(button => {
-        button.addEventListener('click', async () => {
-          const parentSubmenu = button.closest('.slide-submenu-l2');
-          if (parentSubmenu && parentSubmenu.id === 'effects-list-submenu') {
-            document.querySelector('.category-item[data-action="effects"]')?.classList.remove('selected');
-          }
-          await closeLevel2Submenus();
-        });
-      });
-
-      // Enhanced keyboard event handling
-      document.addEventListener('keydown', async (e) => {
-        if (e.key === 'Escape') {
-          try {
-            const activeModal = document.querySelector('#modal-container .modal.show');
-            if (activeModal) {
-              WallpaperApp.UI.hideModal(activeModal.id);
-            } else if (WallpaperApp.MenuTools.state.activePerClipTransitionsPanel) {
-              await closeActivePerClipTransitionsPanel();
-            } else if (document.querySelector('.submenu-wrapper-l2.active')) {
-              await closeLevel2Submenus();
-              document.querySelector('.category-item[data-action="effects"].selected')?.classList.remove('selected');
-            } else if (document.querySelector('.submenu-wrapper.active')) {
-              const activeL1 = document.querySelector('.submenu-wrapper.active .slide-submenu.active');
-              if (activeL1) {
-                const action = activeL1.id.replace('-submenu', '');
-                document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
-              }
-              await closeLevel1Submenus();
-            } else if (mainMenu.classList.contains('active')) {
-              await closeMainMenu();
-            }
-          } catch (error) {
-            console.error('[Escape key handler] Error:', error);
-          }
-        }
-      });
-    }
   });
 </script>
-<script src="media-importer.js"></script>
+
 </body>
 </html>
