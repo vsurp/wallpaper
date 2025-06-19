@@ -1,11 +1,12 @@
 /**
  * FL Studio Wallpaper App - Media Manager Module
- * Version 0.7.1 - Fixed Init by Gemini
+ * Version 0.8.0 - Label Fix
  *
  * This module handles UI, media library, playlist management, and file imports.
- * Playback logic has been moved to player-engine.js.
+ * It uses a <label> for the file input to ensure maximum reliability.
  */
 
+// This defines the global 'MediaManager' variable for other scripts.
 const MediaManager = (() => {
   "use strict";
 
@@ -20,7 +21,7 @@ const MediaManager = (() => {
       height: 90
     },
     IMAGE_DISPLAY_DURATION: 5000,
-    STORAGE_KEY: 'flStudioWallpaper_media_v7',
+    STORAGE_KEY: 'flStudioWallpaper_media_v8',
     VIDEO_METADATA_TIMEOUT: 10000,
     VIDEO_THUMBNAIL_TIMEOUT: 10000,
     AVAILABLE_TRANSITIONS: [
@@ -39,7 +40,7 @@ const MediaManager = (() => {
     ]
   };
 
-  // Application state - Centralized state management for this module
+  // Application state for this module
   const state = {
     mediaLibrary: [],
     playlist: {
@@ -52,21 +53,7 @@ const MediaManager = (() => {
       advancingInProgress: false,
       playedInShuffle: new Set()
     },
-    dom: {
-      importSubmenu: null,
-      mediaContainer: null,
-      mediaGallery: null,
-      playlistContainer: null,
-      playlistControlsContainer: null,
-      mediaLibrarySection: null,
-      playlistSection: null,
-      mediaEmptyState: null,
-      playlistEmptyState: null,
-      mainMenu: null,
-      contextMenuContainer: null,
-      inlinePanelContainer: null,
-      perClipTransitionsList: null,
-    },
+    dom: {}, // Will be populated by DOMManager
     selection: {
       active: false,
       startPoint: null,
@@ -99,16 +86,12 @@ const MediaManager = (() => {
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     },
-    showNotification: (message, type = 'info', duration) => {
-      WallpaperApp.UI.showNotification(message, type, duration);
-    },
     createElement: (tag, options = {}) => {
       const element = document.createElement(tag);
       if (options.className) element.className = options.className;
       if (options.id) element.id = options.id;
       if (options.textContent) element.textContent = options.textContent;
       if (options.innerHTML) element.innerHTML = options.innerHTML;
-      if (options.style) Object.assign(element.style, options.style);
       if (options.attributes) Object.entries(options.attributes).forEach(([k, v]) => element.setAttribute(k, v));
       if (options.events) Object.entries(options.events).forEach(([e, h]) => element.addEventListener(e, h));
       return element;
@@ -125,17 +108,24 @@ const MediaManager = (() => {
       state.dom.mediaContainer = document.getElementById('media-container');
       state.dom.perClipTransitionsList = document.getElementById('per-clip-transitions-list');
       state.dom.importSubmenu = document.getElementById('import-media-submenu');
-      if (!state.dom.mediaContainer || !state.dom.importSubmenu) {
-        console.error("CRITICAL - A required DOM element (#media-container or #import-media-submenu) not found.");
-        return false;
-      }
-      return true;
+      return !(!state.dom.mediaContainer || !state.dom.importSubmenu);
     },
     setupMediaImportUI(menuContent) {
       menuContent.innerHTML = '';
       this.setupFileInput();
-      const importButton = Utils.createElement('button', { className: 'submenu-item import-media-button', textContent: 'IMPORT MEDIA', attributes: { 'data-action': 'import-media-action', 'data-tooltip': 'Click to import media files' }});
-      menuContent.appendChild(importButton);
+
+      const importLabel = Utils.createElement('label', {
+        className: 'submenu-item import-media-button',
+        textContent: 'IMPORT MEDIA',
+        attributes: {
+          'for': 'media-file-input',
+          'data-tooltip': 'Click to import media files',
+          'role': 'button',
+          'tabindex': '0'
+        }
+      });
+
+      menuContent.appendChild(importLabel);
       menuContent.appendChild(Utils.createDivider());
       state.dom.mediaLibrarySection = this.createMediaLibrarySection();
       menuContent.appendChild(state.dom.mediaLibrarySection);
@@ -145,7 +135,19 @@ const MediaManager = (() => {
     },
     setupFileInput() {
       if (state.fileInput) state.fileInput.remove();
-      state.fileInput = Utils.createElement('input', { type: 'file', id: 'media-file-input', accept: [...CONSTANTS.SUPPORTED_TYPES.video, ...CONSTANTS.SUPPORTED_TYPES.image].join(','), multiple: true, style: { display: 'none' }, events: { change: (e) => { FileHandler.handleFileSelect(e.target.files); e.target.value = ''; }}});
+      state.fileInput = Utils.createElement('input', {
+        type: 'file',
+        id: 'media-file-input',
+        accept: [...CONSTANTS.SUPPORTED_TYPES.video, ...CONSTANTS.SUPPORTED_TYPES.image].join(','),
+        multiple: true,
+        style: { display: 'none' },
+        events: {
+          change: (e) => {
+            FileHandler.handleFileSelect(e.target.files);
+            e.target.value = '';
+          }
+        }
+      });
       document.body.appendChild(state.fileInput);
     },
     createMediaLibrarySection() {
@@ -187,7 +189,7 @@ const MediaManager = (() => {
     }
   };
 
-  // File Handler
+  // Handles file processing
   const FileHandler = {
     async handleFileSelect(files) {
       if (!files || files.length === 0) return;
@@ -197,12 +199,12 @@ const MediaManager = (() => {
           return this.processFile(file).then(() => validCount++).catch(() => invalidCount++);
         } else {
           invalidCount++;
-          Utils.showNotification(`Unsupported file type: ${file.name}`, 'warning');
+          WallpaperApp.UI.showNotification(`Unsupported file type: ${file.name}`, 'warning');
           return Promise.resolve();
         }
       });
       await Promise.all(processingPromises);
-      if (validCount > 0) Utils.showNotification(`Imported ${validCount} media file(s).`, 'success');
+      if (validCount > 0) WallpaperApp.UI.showNotification(`Imported ${validCount} media file(s).`, 'success');
       MediaLibraryManager.updateUI();
       PlaylistManager.updateUI();
       StorageManager.saveData();
@@ -211,7 +213,7 @@ const MediaManager = (() => {
       const id = Utils.generateId();
       const url = URL.createObjectURL(file);
       const type = CONSTANTS.SUPPORTED_TYPES.video.includes(file.type) ? 'video' : 'image';
-      const mediaItem = { id, name: file.name, type, mimeType: file.type, size: file.size, url, dateAdded: Date.now(), thumbnail: null, settings: { effects: [] }};
+      const mediaItem = { id, name: file.name, type, mimeType: file.type, size: file.size, url, dateAdded: Date.now(), thumbnail: null, settings: { effects: [] } };
       state.mediaLibrary.push(mediaItem);
       try {
         mediaItem.thumbnail = await this.generateThumbnail(mediaItem, file);
@@ -244,7 +246,7 @@ const MediaManager = (() => {
         const timeout = setTimeout(() => {
           if (!resolved) cleanupAndReject(`Thumbnail timeout for "${videoName}"`);
         }, CONSTANTS.VIDEO_THUMBNAIL_TIMEOUT);
-        const cleanup = () => { if(!resolved) { resolved = true; clearTimeout(timeout); video.src = ''; video.load(); }};
+        const cleanup = () => { if (!resolved) { resolved = true; clearTimeout(timeout); video.src = ''; video.load(); } };
         const cleanupAndResolve = (url) => { cleanup(); resolve(url); };
         const cleanupAndReject = (msg) => { cleanup(); reject(new Error(msg)); };
         video.onloadedmetadata = () => video.currentTime = Math.min(1.0, video.duration / 3);
@@ -310,7 +312,7 @@ const MediaManager = (() => {
       });
       PlaylistManager.updateUI();
       StorageManager.saveData();
-      Utils.showNotification(`Added ${validItems.length} items to playlist.`, 'success');
+      WallpaperApp.UI.showNotification(`Added ${validItems.length} items to playlist.`, 'success');
     },
     calculateInsertPosition(e) {
       const targetEl = e.target.closest('.playlist-item, .playlist-transition-zone');
@@ -392,7 +394,7 @@ const MediaManager = (() => {
     }
   };
 
-  // Media Library Manager
+  // Manages the media library UI
   const MediaLibraryManager = {
     updateUI() {
       const gallery = state.dom.mediaGallery;
@@ -442,13 +444,14 @@ const MediaManager = (() => {
       this.updateUI();
       PlaylistManager.updateUI();
       StorageManager.saveData();
-      if (!suppressNotification) Utils.showNotification(`Deleted: ${mediaToDelete.name}`, 'info');
+      if (!suppressNotification) WallpaperApp.UI.showNotification(`Deleted: ${mediaToDelete.name}`, 'info');
       SelectionManager.clearSelection();
     },
     handleMediaDelete(media) {
       if (state.selection.items.has(media.id) && state.selection.items.size > 1) {
+        const count = state.selection.items.size;
         Array.from(state.selection.items).forEach(id => this.deleteMedia(id, true));
-        Utils.showNotification(`${state.selection.items.size} items deleted.`, 'info');
+        WallpaperApp.UI.showNotification(`${count} items deleted.`, 'info');
         SelectionManager.clearSelection();
       } else {
         this.deleteMedia(media.id);
@@ -456,11 +459,11 @@ const MediaManager = (() => {
     }
   };
 
-  // Playlist Manager
+  // Manages the playlist state and UI
   const PlaylistManager = {
     addItem(mediaId, insertAtIndex = -1, suppressNotification = false) {
       const media = state.mediaLibrary.find(m => m.id === mediaId);
-      if (!media) return Utils.showNotification(`Media not found.`, 'warning');
+      if (!media) return WallpaperApp.UI.showNotification(`Media not found.`, 'warning');
       const wasEmpty = state.playlist.items.length === 0;
       if (insertAtIndex === -1 || insertAtIndex >= state.playlist.items.length) {
         state.playlist.items.push(mediaId);
@@ -473,7 +476,7 @@ const MediaManager = (() => {
       if (!suppressNotification) {
         this.updateUI();
         StorageManager.saveData();
-        Utils.showNotification(`Added to playlist: ${media.name}`, 'success');
+        WallpaperApp.UI.showNotification(`Added to playlist: ${media.name}`, 'success');
       }
     },
     removeItem(index) {
@@ -545,7 +548,7 @@ const MediaManager = (() => {
     },
     clearPlaylist(confirmed = false) {
       if (!confirmed) {
-        WallpaperApp.UI.showModal({ title: 'Confirm Clear Playlist', content: 'Are you sure?', footerButtons: [{ text: 'Clear', classes: 'btn-danger', onClick: () => this.clearPlaylist(true) }, { text: 'Cancel' }]});
+        WallpaperApp.UI.showModal({ title: 'Confirm Clear Playlist', content: 'Are you sure?', footerButtons: [{ text: 'Clear', classes: 'btn-danger', onClick: () => this.clearPlaylist(true) }, { text: 'Cancel', classes: 'btn-secondary' }]});
         return;
       }
       WallpaperApp.getModule('PlayerEngine').stopPlaylist();
@@ -553,7 +556,7 @@ const MediaManager = (() => {
       state.playlist.playedInShuffle.clear();
       this.updateUI();
       StorageManager.saveData();
-      Utils.showNotification('Playlist cleared.', 'info');
+      WallpaperApp.UI.showNotification('Playlist cleared.', 'info');
     },
     toggleShuffle() {
       state.playlist.shuffle = !state.playlist.shuffle;
@@ -563,7 +566,7 @@ const MediaManager = (() => {
       }
       this.updateUI();
       StorageManager.saveData();
-      Utils.showNotification(`Shuffle: ${state.playlist.shuffle ? 'On' : 'Off'}`, 'info');
+      WallpaperApp.UI.showNotification(`Shuffle: ${state.playlist.shuffle ? 'On' : 'Off'}`, 'info');
     },
     updateUI() {
       const plCont = state.dom.playlistContainer;
@@ -602,9 +605,9 @@ const MediaManager = (() => {
       controls.appendChild(transBtn);
       controls.appendChild(delBtn);
       item.appendChild(controls);
-      if (index === state.playlist.currentIndex && state.playlist.isPlaying) {
-        item.classList.add('current');
-        thumb.appendChild(Utils.createElement('div', { className: 'playlist-item-playing-indicator', innerHTML: '<span>▶</span>' }));
+      const PlayerEngine = WallpaperApp.getModule('PlayerEngine');
+      if (PlayerEngine && index === state.playlist.currentIndex) {
+        PlayerEngine.HighlightManager.updateActiveHighlight(media.id, 'playlist');
       }
       const transition = state.playlist.transitions[index];
       if (transition) {
@@ -634,7 +637,7 @@ const MediaManager = (() => {
     }
   };
 
-  // Storage Manager
+  // Manages saving and loading data to localStorage
   const StorageManager = {
     saveData() {
       try {
@@ -644,7 +647,7 @@ const MediaManager = (() => {
         };
         localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(data));
       } catch (e) {
-        Utils.showNotification('Error saving library.', 'error');
+        WallpaperApp.UI.showNotification('Error saving library.', 'error');
       }
     },
     loadData() {
@@ -664,11 +667,13 @@ const MediaManager = (() => {
     }
   };
 
-  // Contextual Manager
+  // Handles context menus and inline panels
   const ContextualManager = {
     showContextMenu(event, targetId, type, anchorElement) {
-      this.hideContextMenu(); this.hideInlinePanel();
+      this.hideContextMenu();
+      this.hideInlinePanel();
       if (type !== 'transition_per_clip') WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+
       const menu = state.dom.contextMenuContainer;
       if (!menu) return;
       menu.innerHTML = '';
@@ -677,6 +682,7 @@ const MediaManager = (() => {
       menu.style.left = `${event.clientX - rect.left}px`;
       menu.style.top = `${event.clientY - rect.top}px`;
       state.contextualEditing.contextMenuElement = menu;
+
       if (type === 'effect') {
         const btn = Utils.createElement('button', { textContent: 'Add/Edit Effect', className: 'context-menu-item', events: { click: () => { this.hideContextMenu(); this.showInlinePanel(event, targetId, 'effect', anchorElement); } } });
         menu.appendChild(btn);
@@ -684,18 +690,22 @@ const MediaManager = (() => {
     },
     hideContextMenu() { if (state.contextualEditing.contextMenuElement) state.contextualEditing.contextMenuElement.style.display = 'none'; },
     showInlinePanel(event, targetId, type, anchor) {
-      this.hideInlinePanel(); this.hideContextMenu(); WallpaperApp.MenuTools.closePerClipTransitionsPanel();
+      this.hideInlinePanel();
+      this.hideContextMenu();
+      WallpaperApp.MenuTools.closePerClipTransitionsPanel();
       const panel = state.dom.inlinePanelContainer;
       if (!panel) return;
       panel.innerHTML = '';
       panel.style.display = 'block';
       Object.assign(state.contextualEditing, { panelElement: panel, targetId, type, activeItem: null });
+
       if (anchor) {
         const anchorRect = anchor.getBoundingClientRect();
         const subRect = state.dom.importSubmenu.getBoundingClientRect();
         panel.style.top = `${anchorRect.bottom - subRect.top + 5}px`;
         panel.style.left = `${anchorRect.left - subRect.left}px`;
       }
+
       const title = type === 'effect' ? `Effects for Item` : `Transition at index ${targetId}`;
       panel.appendChild(Utils.createElement('div', { textContent: title, className: 'inline-panel-title' }));
       const itemsCont = Utils.createElement('div', { className: 'inline-panel-items' });
@@ -743,7 +753,6 @@ const MediaManager = (() => {
     }
   };
 
-  // Effects & Transitions Managers
   const EffectsManager = {
     applyEffect(mediaId) {
       const media = state.mediaLibrary.find(m => m.id === mediaId);
@@ -754,7 +763,7 @@ const MediaManager = (() => {
       if (!media.settings) media.settings = { effects: [] };
       media.settings.effects = media.settings.effects.filter(e => e.effectId !== effectDef.id);
       media.settings.effects.push({ effectId: effectDef.id, params });
-      Utils.showNotification(`Effect ${effectDef.name} applied.`, 'success');
+      WallpaperApp.UI.showNotification(`Effect ${effectDef.name} applied.`, 'success');
       StorageManager.saveData();
       MediaLibraryManager.updateUI();
       const PlayerEngine = WallpaperApp.getModule('PlayerEngine');
@@ -770,14 +779,15 @@ const MediaManager = (() => {
       // ... (implementation for populating controls - can be simplified if not used immediately)
     }
   };
+
   const TransitionManager = {
     applyTransitionFromInlinePanel(playlistIndex) {
       const item = state.contextualEditing.activeItem;
-      if (!item) return Utils.showNotification("No transition selected.", "error");
+      if (!item) return WallpaperApp.UI.showNotification("No transition selected.", "error");
       const params = {};
       state.contextualEditing.panelElement.querySelectorAll('[data-param-id]').forEach(el => params[el.dataset.paramId] = el.type === 'range' ? parseFloat(el.value) : el.value);
       state.playlist.transitions[playlistIndex] = { transitionId: item.id, params };
-      Utils.showNotification(`Transition ${item.name} applied.`, 'success');
+      WallpaperApp.UI.showNotification(`Transition ${item.name} applied.`, 'success');
       StorageManager.saveData();
       PlaylistManager.updateUI();
       ContextualManager.hideInlinePanel();
@@ -788,7 +798,7 @@ const MediaManager = (() => {
       const params = {};
       def.params.forEach(p => params[p.id] = p.value);
       state.playlist.transitions[index] = { transitionId, params };
-      Utils.showNotification(`Transition '${def.name}' set.`, 'success');
+      WallpaperApp.UI.showNotification(`Transition '${def.name}' set.`, 'success');
       StorageManager.saveData();
       PlaylistManager.updateUI();
       WallpaperApp.MenuTools.closePerClipTransitionsPanel();
@@ -809,14 +819,14 @@ const MediaManager = (() => {
       const removeBtn = Utils.createElement('button', { className: 'submenu-item btn-danger', textContent: 'Remove Transition' });
       if (!currentTrans) removeBtn.classList.add('disabled');
       removeBtn.onclick = () => {
-        if (currentTrans) { delete state.playlist.transitions[index]; Utils.showNotification('Transition removed.', 'info'); StorageManager.saveData(); PlaylistManager.updateUI(); }
+        if (currentTrans) { delete state.playlist.transitions[index]; WallpaperApp.UI.showNotification('Transition removed.', 'info'); StorageManager.saveData(); PlaylistManager.updateUI(); }
         WallpaperApp.MenuTools.closePerClipTransitionsPanel();
       };
       listEl.appendChild(removeBtn);
     }
   };
 
-  // Event Handler
+  // Handles all event listeners
   const EventHandler = {
     setupGlobalEvents() {
       document.addEventListener('keydown', e => { if (e.key === 'Shift') state.selection.shiftKeyActive = true; });
@@ -828,9 +838,6 @@ const MediaManager = (() => {
       this.setupSubmenuEvents();
     },
     setupSubmenuEvents() {
-      state.dom.importSubmenu?.addEventListener('click', e => {
-        if (e.target.closest('button[data-action="import-media-action"]')) state.fileInput?.click();
-      });
       state.dom.mediaGallery?.addEventListener('click', e => {
         const thumb = e.target.closest('.media-thumbnail');
         if (!thumb) return;
@@ -839,11 +846,13 @@ const MediaManager = (() => {
         if (e.target.closest('.media-delete-btn')) { e.stopPropagation(); MediaLibraryManager.handleMediaDelete(media); }
         else { SelectionManager.handleThumbnailClick(e, media); }
       });
+
       state.dom.mediaGallery?.addEventListener('contextmenu', e => {
         e.preventDefault();
         const thumb = e.target.closest('.media-thumbnail');
         if (thumb) ContextualManager.showContextMenu(e, thumb.dataset.id, 'effect', thumb);
       });
+
       state.dom.playlistControlsContainer?.addEventListener('click', e => {
         const btn = e.target.closest('button');
         if (!btn) return;
@@ -852,6 +861,7 @@ const MediaManager = (() => {
         else if (btn.id === 'playlist-shuffle-button') PlaylistManager.toggleShuffle();
         else if (btn.id === 'playlist-clear-button') PlaylistManager.clearPlaylist();
       });
+
       state.dom.playlistContainer?.addEventListener('click', e => {
         const item = e.target.closest('.playlist-item');
         if (!item) return;
@@ -869,37 +879,37 @@ const MediaManager = (() => {
     }
   };
 
-  // Main initialization function
+  // Main initialization function for this module
   const init = () => {
     console.log("[MediaManager] Initializing...");
-    if (!DOMManager.initializeDOMReferences()) return;
+    if (!DOMManager.initializeDOMReferences()) {
+      console.error("MediaManager failed to find critical DOM elements.");
+      return;
+    }
 
     const menuContent = state.dom.importSubmenu.querySelector('.menu-content');
     if (!menuContent) {
-      console.error("CRITICAL - .menu-content in import submenu not found.");
+      console.error("Could not find .menu-content in #import-media-submenu");
       return;
     }
+
     DOMManager.setupMediaImportUI(menuContent);
     StorageManager.loadData();
     EventHandler.setupGlobalEvents();
 
-    // After MediaManager is set up, initialize PlayerEngine and give it access to state
-    const PlayerEngine = WallpaperApp.getModule('PlayerEngine');
-    if (PlayerEngine) {
-      PlayerEngine.init(state, PlaylistManager);
+    const player = WallpaperApp.getModule('PlayerEngine');
+    if (player) {
+      player.init(state, PlaylistManager);
     } else {
-      console.error("FATAL: PlayerEngine module not found during MediaManager init.");
+      console.error("PlayerEngine module not found or loaded after MediaManager.");
     }
     console.log("[MediaManager] Initialization complete.");
   };
 
-  // Public API
+  // Public API for MediaManager
   return {
     init,
-    getState: () => state, // Expose state for PlayerEngine
-    PlaylistManager, // Expose PlaylistManager for PlayerEngine
     getAvailableEffects: () => CONSTANTS.AVAILABLE_EFFECTS,
-    getAvailableTransitions: () => CONSTANTS.AVAILABLE_TRANSITIONS,
     getParamsFor: EffectsManager.getParamsFor,
     populatePerClipTransitions: TransitionManager.populatePerClipTransitions,
   };
