@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body style="overflow: hidden;">
+
 <div id="app-container">
   <div id="background-container" class="module-container"></div>
   <div id="media-container" class="module-container"></div>
@@ -41,7 +42,7 @@
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v0.4.0-final-fix</div>
+      <div class="version-info">v1.0.0</div>
     </div>
   </nav>
 
@@ -51,43 +52,36 @@
         <h1>MEDIA PLAYER</h1>
         <button class="btn btn-icon submenu-close">&times;</button>
       </div>
-      <div class="menu-content"><!-- Filled by media-manager.js --></div>
+      <div class="menu-content"></div>
       <div class="menu-footer"></div>
     </div>
-
     <div id="daw-integration-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>DAW INTEGRATION</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section">
         <button class="submenu-item" data-action="fl-studio-connection" data-tooltip="Connect to FL Studio for theme synchronization">FL STUDIO</button>
       </div></div>
     </div>
-
     <div id="performance-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>PERFORMANCE</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
-
     <div id="extra-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>EXTRA</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
-
     <div id="config-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>CONFIG SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
-
     <div id="menu-settings-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>MENU SETTINGS</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section"><p>Settings soon...</p></div></div>
     </div>
-
     <div id="about-submenu" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header"><h1>ABOUT</h1><button class="btn btn-icon submenu-close">&times;</button></div>
       <div class="menu-content"><div class="menu-section"><p>App by vsurp</p></div></div>
     </div>
   </div>
-
   <div class="submenu-wrapper-l2">
     <div id="effects-list-submenu" class="slide-submenu-l2 acrylic acrylic-dark">
       <div class="menu-header">
@@ -95,11 +89,10 @@
         <button class="btn btn-icon submenu-close-l2">&times;</button>
       </div>
       <div class="menu-content">
-        <div class="menu-section"><!-- Filled by script --></div>
+        <div class="menu-section"></div>
       </div>
     </div>
   </div>
-
   <div id="slide-left-panel-wrapper" class="slide-left-panel-wrapper" style="display: none;">
     <div id="per-clip-transitions-panel" class="slide-submenu acrylic acrylic-dark">
       <div class="menu-header">
@@ -111,198 +104,24 @@
       </div>
     </div>
   </div>
-
   <div id="notification-container" style="visibility: hidden;"></div>
   <div id="modal-container" style="display: none;"></div>
   <div id="context-menu-container" class="context-menu"></div>
   <div id="inline-panel-container" class="inline-panel"></div>
 </div>
 
-<!-- Load scripts separately, but ensure correct execution order with defer -->
+<script>
+  const WallpaperApp = {
+    _modules: new Map(),
+    registerModule(name, module) { this._modules.set(name, module); },
+    getModule(name) { return this._modules.get(name); },
+  };
+</script>
+
 <script src="player-engine.js" defer></script>
 <script src="media-manager.js" defer></script>
 
-<script>
-  // This inline script will also be deferred, running after the two above it.
-  document.addEventListener('DOMContentLoaded', function() {
-    try {
-      console.log("DOM fully loaded. Initializing application...");
-
-      if (typeof PlayerEngine === 'undefined' || typeof MediaManager === 'undefined') {
-        throw new Error("A core module (PlayerEngine or MediaManager) failed to load. Check script paths and errors.");
-      }
-
-      // 1. Register modules
-      WallpaperApp.registerModule('PlayerEngine', PlayerEngine);
-      WallpaperApp.registerModule('MediaManager', MediaManager);
-
-      // 2. Initialize the main manager module.
-      MediaManager.init();
-
-      // 3. Initialize UI components
-      const menuSystem = setupMenuSystem();
-      if (!menuSystem.success) {
-        throw new Error('Menu system initialization failed');
-      }
-
-      const MediaManagerModule = WallpaperApp.getModule('MediaManager');
-      if (MediaManagerModule && typeof MediaManagerModule.getAvailableEffects === 'function') {
-        populateL2Submenu('effects-list-submenu', MediaManagerModule.getAvailableEffects(), 'effect');
-        WallpaperApp.MenuTools.setupL2ItemListeners('effects-list-submenu');
-      }
-
-      const perClipPanelCloseBtn = document.querySelector('#per-clip-transitions-panel .panel-close');
-      if (perClipPanelCloseBtn) {
-        perClipPanelCloseBtn.addEventListener('click', () => {
-          WallpaperApp.MenuTools.closePerClipTransitionsPanel();
-        });
-      }
-      console.log("Application initialization complete.");
-    } catch (error) {
-      console.error('[App Initialization] Critical error:', error);
-      WallpaperApp.UI.showNotification('Failed to initialize application. Check console.', 'error');
-    }
-
-    function populateL2Submenu(submenuId, items, type) {
-      const submenu = document.getElementById(submenuId);
-      const menuContentSection = submenu?.querySelector('.menu-content .menu-section');
-      if (!menuContentSection) return;
-      menuContentSection.innerHTML = '';
-      items.forEach(item => {
-        const button = document.createElement('button');
-        button.className = 'submenu-item-l2';
-        button.textContent = item.name;
-        button.setAttribute('data-tooltip', `Apply ${item.name} effect`);
-        if (type === 'effect') button.setAttribute('data-effect-id', item.id);
-        menuContentSection.appendChild(button);
-      });
-    }
-
-    function setupMenuSystem() {
-      try {
-        const menuTrigger = document.getElementById('menu-trigger');
-        const mainMenu = document.getElementById('main-menu');
-        const menuClose = mainMenu?.querySelector('.menu-close');
-        const categoryItems = document.querySelectorAll('#main-menu .category-item');
-        const submenuWrapperL1 = document.querySelector('.submenu-wrapper');
-        const submenuWrapperL2 = document.querySelector('.submenu-wrapper-l2');
-
-        if (!mainMenu || !submenuWrapperL1 || !submenuWrapperL2) {
-          console.error("Critical menu elements not found.");
-          return { success: false };
-        }
-
-        const menuState = { animationInProgress: false };
-        const afterAnimation = (callback) => setTimeout(callback, 350); // Using a fixed value from your config
-
-        async function closeLevel2Submenus(keepL1Open = false) {
-          const activeL2Wrapper = document.querySelector('.submenu-wrapper-l2.active');
-          if (activeL2Wrapper) {
-            activeL2Wrapper.classList.remove('active');
-            if (!keepL1Open) mainMenu.classList.remove('main-menu-l2-active');
-            return new Promise(resolve => afterAnimation(() => {
-              if (!activeL2Wrapper.classList.contains('active')) activeL2Wrapper.style.display = 'none';
-              resolve();
-            }));
-          }
-          return Promise.resolve();
-        }
-
-        async function closeLevel1Submenus(keepMainMenuOpen = false) {
-          await closeLevel2Submenus(true);
-          const activeL1Wrapper = document.querySelector('.submenu-wrapper.active');
-          if (activeL1Wrapper) {
-            activeL1Wrapper.querySelectorAll('.slide-submenu.active').forEach(s => s.classList.remove('active'));
-            activeL1Wrapper.classList.remove('active');
-            if (!keepMainMenuOpen) mainMenu.classList.remove('main-menu-submenu-active', 'main-menu-l2-active', 'main-menu-slide-left-active');
-            return new Promise(resolve => afterAnimation(() => {
-              if (!activeL1Wrapper.classList.contains('active')) activeL1Wrapper.style.display = 'none';
-              resolve();
-            }));
-          }
-          return Promise.resolve();
-        }
-
-        async function closeMainMenu() {
-          if (menuState.animationInProgress) return;
-          menuState.animationInProgress = true;
-          await closeLevel1Submenus();
-          mainMenu.classList.remove('active');
-          afterAnimation(() => menuState.animationInProgress = false);
-        }
-
-        menuTrigger?.addEventListener('click', () => !mainMenu.classList.contains('active') ? mainMenu.classList.add('active') : closeMainMenu());
-        menuClose?.addEventListener('click', closeMainMenu);
-
-        categoryItems.forEach(item => {
-          item.addEventListener('click', async () => {
-            const action = item.getAttribute('data-action');
-            const isEffects = action === 'effects';
-            const targetSubmenuId = isEffects ? 'effects-list-submenu' : action + '-submenu';
-            const targetSubmenu = document.getElementById(targetSubmenuId);
-
-            if (item.classList.contains('selected')) {
-              item.classList.remove('selected');
-              isEffects ? await closeLevel2Submenus() : await closeLevel1Submenus();
-            } else {
-              categoryItems.forEach(i => i.classList.remove('selected'));
-              item.classList.add('selected');
-
-              if (isEffects) {
-                await closeLevel1Submenus(true);
-                submenuWrapperL2.style.display = 'block';
-                requestAnimationFrame(() => {
-                  mainMenu.classList.add('main-menu-l2-active');
-                  submenuWrapperL2.classList.add('active');
-                  targetSubmenu.classList.add('active');
-                });
-              } else if (targetSubmenu) {
-                await closeLevel1Submenus(true);
-                submenuWrapperL1.style.display = 'block';
-                const activeSub = submenuWrapperL1.querySelector('.slide-submenu.active');
-                if(activeSub) activeSub.classList.remove('active');
-
-                requestAnimationFrame(() => {
-                  mainMenu.classList.add('main-menu-submenu-active');
-                  submenuWrapperL1.classList.add('active');
-                  targetSubmenu.classList.add('active');
-                });
-              } else {
-                await closeLevel1Submenus(true);
-              }
-            }
-          });
-        });
-
-        document.querySelectorAll('.submenu-wrapper .submenu-close, .submenu-wrapper-l2 .submenu-close-l2').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const parentSubmenu = btn.closest('.slide-submenu, .slide-submenu-l2');
-            if (parentSubmenu) {
-              const action = parentSubmenu.id.replace('-submenu', '').replace('-list', '');
-              document.querySelector(`.category-item[data-action="${action}"]`)?.classList.remove('selected');
-            }
-            if (btn.classList.contains('submenu-close-l2')) await closeLevel2Submenus();
-            else await closeLevel1Submenus();
-          });
-        });
-
-        document.addEventListener('keydown', async (e) => {
-          if (e.key === 'Escape') {
-            if (document.querySelector('.modal.show')) WallpaperApp.UI.hideModal();
-            else if (document.querySelector('.submenu-wrapper-l2.active')) await closeLevel2Submenus();
-            else if (document.querySelector('.submenu-wrapper.active')) await closeLevel1Submenus();
-            else if (mainMenu.classList.contains('active')) await closeMainMenu();
-          }
-        });
-
-        return { success: true };
-      } catch(e) {
-        console.error("MenuSystem init failed:", e);
-        return { success: false };
-      }
-    }
-  });
-</script>
+<script src="app.js" defer></script>
 
 </body>
 </html>
