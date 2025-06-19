@@ -42,7 +42,7 @@
       </div>
     </div>
     <div class="menu-footer">
-      <div class="version-info">v1.0.0</div>
+      <div class="version-info">v1.1.0</div>
     </div>
   </nav>
 
@@ -110,17 +110,8 @@
   <div id="inline-panel-container" class="inline-panel"></div>
 </div>
 
-<script>
-  const WallpaperApp = {
-    _modules: new Map(),
-    registerModule(name, module) { this._modules.set(name, module); },
-    getModule(name) { return this._modules.get(name); },
-  };
-</script>
-
 <script src="player-engine.js" defer></script>
 <script src="media-manager.js" defer></script>
-
 <script src="app.js" defer></script>
 
 </body>
